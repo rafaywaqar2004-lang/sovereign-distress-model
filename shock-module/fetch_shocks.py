@@ -47,14 +47,17 @@ def fetch_timeline(fips_code, center_date, mode="timelinetone", window_days=WIND
     }
     url = f"{GDELT_DOC_API}?{urllib.parse.urlencode(params)}"
 
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; research-script/1.0)"})
     for attempt in range(retries):
+        print(f"  [{mode}] attempt {attempt+1}/{retries}: {url}", flush=True)
         try:
-            with urllib.request.urlopen(url, timeout=30) as resp:
+            with urllib.request.urlopen(req, timeout=15) as resp:
                 raw = resp.read().decode("utf-8")
+                print(f"  [{mode}] got {len(raw)} bytes back", flush=True)
                 return json.loads(raw)
         except Exception as e:
-            print(f"  attempt {attempt+1}/{retries} failed for {fips_code} ({mode}): {e}")
-            time.sleep(3)
+            print(f"  [{mode}] attempt {attempt+1}/{retries} failed for {fips_code}: {e}", flush=True)
+            time.sleep(2)
     return None
 
 

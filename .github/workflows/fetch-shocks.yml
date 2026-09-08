@@ -19,7 +19,10 @@ jobs:
 
       - name: Fetch GDELT shock timelines
         working-directory: shock-module
-        run: python fetch_shocks.py
+        env:
+          PYTHONUNBUFFERED: "1"
+        timeout-minutes: 5
+        run: python -u fetch_shocks.py
 
       - name: Commit fetched timelines if anything changed
         run: |
