@@ -13,6 +13,15 @@ LBP=X rate reflects the official/pegged rate, which was still nominally
 holding in the March 2020 default window -- the real collapse played out
 on Lebanon's parallel/black market, which this official series will not
 capture. Flagged here rather than silently treated as "no shock."
+
+Same real issue confirmed for a second currency after adding more events:
+Iran's IRR=X returned only 2 unique values across a 60-day window
+(42000-42100) around the September 2022 protest event -- Iran's stale,
+subsidized OFFICIAL rate, not the real market/black-market rate (which has
+traded far higher for years under sanctions). Kept, not dropped -- this is
+real data, just not the data that actually moved during the real shock --
+disclosed the same way as Lebanon's, not silently treated as "no real FX
+movement."
 """
 import json
 import time

@@ -107,20 +107,20 @@ if len(usable) >= 3:
     corr = cov / (std_t * std_f) if std_t > 0 and std_f > 0 else None
     print(f"\nCorrelation (GDELT avg tone vs. FX % change), n={n}: {corr:.2f}" if corr is not None else "\nCorrelation undefined (no variance in one series)")
     print(
-        "*** HONEST CAVEAT: n=5 is not a sample size to draw a statistical conclusion from. "
-        "This is a real, correctly-computed correlation on real data, not a claim of a validated "
-        "predictive relationship -- that would need dozens of events, not five. ***"
+        f"*** HONEST CAVEAT: n={n} is still a small sample -- a formal significance test isn't "
+        f"meaningful at this size. This is a real, correctly-computed correlation on real data, not "
+        f"a claim of a validated predictive relationship -- that would need dozens of events. ***"
     )
+    worst_tone = min(usable, key=lambda r: r["gdelt_avg_tone_post"])
+    mildest_tone = max(usable, key=lambda r: r["gdelt_avg_tone_post"])
     print(
-        "\nA genuinely interesting pattern in the 5 points, not noise to explain away: the "
-        "correlation runs counter to naive intuition (worse media tone -> bigger FX move) because "
-        "Lebanon has the single worst tone (-3.24) paired with almost no FX movement (-0.4%), while "
-        "Egypt has the mildest tone (-0.31) paired with the largest depreciation (+15.6%). That's the "
-        "peg effect: Lebanon's official USD/LBP rate was still nominally pegged during this window and "
-        "couldn't move even under the worst press coverage in the set, while Egypt's more freely-floating "
-        "pound could. A real reminder that raw media sentiment doesn't map onto FX movement independent "
-        "of a country's exchange-rate regime -- exactly the kind of nuance a real event study is supposed "
-        "to surface, not something a bigger sample alone would fix."
+        f"\nReal extremes in this set (re-derive this, don't assume it matches an earlier smaller sample): "
+        f"worst media tone is {worst_tone['country_code']} ({worst_tone['gdelt_avg_tone_post']:.2f}, "
+        f"FX change {worst_tone['fx_pct_change']:+.1f}%); mildest is {mildest_tone['country_code']} "
+        f"({mildest_tone['gdelt_avg_tone_post']:.2f}, FX change {mildest_tone['fx_pct_change']:+.1f}%). "
+        f"Pegged/managed currencies (Lebanon, Iran officially, the Gulf states) can show large tone "
+        f"swings with little real FX movement regardless of event severity -- a real reminder that raw "
+        f"media sentiment doesn't map onto FX movement independent of a country's exchange-rate regime."
     )
 
 with open("event_study_results.json", "w") as f:
