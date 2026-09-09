@@ -129,21 +129,23 @@ st.markdown(f"""
         margin-top: 0.4rem;
     }}
     .honest-box {{
-        background: {ACCENT2_DIM};
-        border-left: 3px solid {ACCENT2};
+        background: {SURFACE};
+        border: 1px solid {BORDER};
+        border-left: 3px solid {TEXT_MUTED};
         border-radius: 4px;
-        padding: 0.9rem 1.2rem;
+        padding: 0.85rem 1.2rem;
         margin: 1rem 0;
-        font-size: 0.9rem;
-        color: {TEXT};
+        font-size: 0.88rem;
+        color: {TEXT_MUTED};
         line-height: 1.6;
     }}
     .honest-box .label {{
         font-family: 'IBM Plex Mono', monospace;
-        font-size: 0.68rem;
-        letter-spacing: 0.08em;
+        font-size: 0.65rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
         text-transform: uppercase;
-        color: {ACCENT2};
+        color: {TEXT_MUTED};
         margin-bottom: 0.4rem;
         display: block;
     }}
@@ -683,7 +685,7 @@ with tab2:
     )
 
     st.markdown(
-        '<div class="honest-box"><span class="label">A real bug, caught and fixed</span>'
+        '<div class="honest-box"><span class="label">Data limitation and specification note</span>'
         '<code>debt_to_gdp</code> is non-missing in only 91 of 507 panel rows. Requiring complete cases across '
         'all 11 factors, including it, collapsed the usable sample to 77 rows and dropped all but 1 of the 17 real '
         'distress events with it — the country-years missing debt data are disproportionately the same '
@@ -693,11 +695,11 @@ with tab2:
     )
 
     st.markdown(
-        '<div class="honest-box"><span class="label">A real limitation, found in a later audit — not yet fixed</span>'
+        '<div class="honest-box"><span class="label">Known limitation — unresolved</span>'
         'The 5 economic factors this model is fit on (<code>current_account_pct_gdp</code>, <code>reserves_months_imports</code>, '
         '<code>gdp_growth</code>, <code>inflation</code>, <code>currency_depreciation_pct</code>) are the same 0–100 '
         '<b>normalized risk sub-scores</b> whose mislabeling was already caught and fixed for Phase 3\'s forecasting model '
-        '(see the Phase 3 tab\'s own "real bug" note) — but that exact same issue was never caught here, in the model that '
+        '(see the Phase 3 tab\'s own data-limitation note) — but that exact same issue was never caught here, in the model that '
         'actually predicts distress. Real check: this panel\'s <code>current_account_pct_gdp</code> for Pakistan in 2023 reads '
         '48.3; the real value, from Phase 3\'s corrected raw data, is <b>-0.3% of GDP</b>. Real 2023 inflation was ~30.8%; this '
         'panel shows 15.7. The <b>governance</b> factors (political_stability, rule_of_law, etc.) are correctly on a 0–100 scale '
@@ -879,7 +881,7 @@ with tab2:
                      f'{oos["test_events"]} real events in the {oos["test_n"]}-row test set</div>', unsafe_allow_html=True)
 
     st.markdown(
-        '<div class="honest-box"><span class="label">Honest finding — read this before trusting the AUC above</span>'
+        '<div class="honest-box"><span class="label">Validation note</span>'
         'The out-of-sample AUC looks moderate, but it is fit on a training set with only 4 real positive events — far below '
         'any reasonable threshold for a stable logistic fit. More telling than the AUC itself: none of the real predicted '
         'probabilities in the 2022-2024 holdout exceed 0.5%, and the ranking does not cleanly separate the country-years that '
@@ -980,7 +982,7 @@ with tab3:
     corr = usable["gdelt_avg_tone_post"].corr(usable["fx_pct_change"])
 
     st.markdown(
-        f'<div class="honest-box"><span class="label">Real, honest finding — not noise to explain away</span>'
+        f'<div class="honest-box"><span class="label">Interpretation note</span>'
         f'Correlation (GDELT tone vs. FX % change), n={len(usable)}: <b>{corr:.2f}</b>. This runs counter to naive '
         f'intuition (worse tone → bigger FX move) because Lebanon has the single worst media tone in the set but '
         f'almost no FX movement — its official rate was still pegged during that window — while Egypt has the '
@@ -1049,7 +1051,7 @@ with tab4:
     )
 
     st.markdown(
-        '<div class="honest-box"><span class="label">A real bug, caught and fixed</span>'
+        '<div class="honest-box"><span class="label">Data limitation and specification note</span>'
         'An early version of this model forecast MENASA\'s <b>normalized 0-100 risk sub-scores</b> instead of real '
         'GDP growth/inflation — that data\'s own file header says explicitly it\'s normalized, not raw. The '
         'giveaway was backtest output with values of exactly 100.0 or 0.0 (rank extremes, not real rates). Fixed '
@@ -1145,7 +1147,7 @@ with tab4:
                      f'<div class="stat-label">Real actual 2024 value</div></div>', unsafe_allow_html=True)
 
     st.markdown(
-        f'<div class="honest-box"><span class="label">Honest result — read before trusting the sliders above</span>'
+        f'<div class="honest-box"><span class="label">Statistical significance note</span>'
         f'Neither shock coefficient is statistically significant at conventional levels in this panel '
         f'(oil: coefficient {beta_oil:+.4f}, p={p_oil:.2f}; rate: coefficient {beta_rate:+.4f}, p={p_rate:.2f}) — '
         f'only the inflation persistence term is. The oil coefficient\'s <i>sign</i> is directionally sensible '
@@ -1270,7 +1272,7 @@ with tab5:
         "Frankfurter (ECB rates) and FRED's fredgraph.csv were both tried first for FX and the US rate proxy "
         "respectively, and both confirmed as genuine structural dead ends (Frankfurter doesn't cover 5 of this "
         "project's currencies; FRED's export endpoint times out consistently across repeated real attempts from "
-        "GitHub Actions) before switching to yfinance — see the \"three real bugs\" section below and each "
+        "GitHub Actions) before switching to yfinance — see the data-quality issues section below and each "
         "module's own README for the full diagnostic trail."
     )
 
@@ -1308,20 +1310,20 @@ with tab5:
             "statistically significant — real, correctly-built mechanism, not a validated precise sensitivity."
         )
 
-    st.markdown("#### Three real bugs, caught and fixed during development")
+    st.markdown("#### Data-quality issues identified and corrected during development")
     bug_cols = st.columns(3)
     with bug_cols[0]:
-        st.markdown(f'<div class="card"><b style="color:{ACCENT};">Bug 1</b><br>'
+        st.markdown(f'<div class="card"><b style="color:{ACCENT};">Issue 1</b><br>'
                      f'<span style="color:{TEXT};font-weight:600;">debt_to_gdp missingness</span><br>'
                      f'<span style="color:{TEXT_MUTED};font-size:0.85rem;">Would have silently dropped 16 of 17 '
                      f'real distress events if included in the primary model.</span></div>', unsafe_allow_html=True)
     with bug_cols[1]:
-        st.markdown(f'<div class="card"><b style="color:{ACCENT};">Bug 2</b><br>'
+        st.markdown(f'<div class="card"><b style="color:{ACCENT};">Issue 2</b><br>'
                      f'<span style="color:{TEXT};font-weight:600;">Silent stdout buffering</span><br>'
                      f'<span style="color:{TEXT_MUTED};font-size:0.85rem;">GitHub Actions ran the GDELT fetch for '
                      f'6+ minutes with zero visible output — fixed with unbuffered Python.</span></div>', unsafe_allow_html=True)
     with bug_cols[2]:
-        st.markdown(f'<div class="card"><b style="color:{ACCENT};">Bug 3</b><br>'
+        st.markdown(f'<div class="card"><b style="color:{ACCENT};">Issue 3</b><br>'
                      f'<span style="color:{TEXT};font-weight:600;">Normalized vs. raw data</span><br>'
                      f'<span style="color:{TEXT_MUTED};font-size:0.85rem;">Early forecast model accidentally '
                      f'predicted risk-rank scores instead of real growth/inflation rates.</span></div>', unsafe_allow_html=True)
