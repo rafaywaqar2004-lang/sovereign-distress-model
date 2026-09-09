@@ -455,10 +455,10 @@ st.markdown("<br>", unsafe_allow_html=True)
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "Overview",
-    "① Sovereign Distress Model",
-    "② Geopolitical Shock Module",
-    "③ Macro Forecast & Stress Test",
-    "Methodology & Limitations",
+    "Country Risk",
+    "Geopolitical Shocks",
+    "Forecast & Stress Test",
+    "Methodology & Validation",
 ])
 
 with tab1:
@@ -637,25 +637,32 @@ with tab1:
     ov_cols = st.columns(3)
     with ov_cols[0]:
         st.markdown(
-            f'<div class="card"><span class="phase-pill">Phase 1</span>'
+            f'<div class="card"><span class="phase-pill">Country Risk</span>'
             f'<div style="{card_title_style}">Is this country heading into distress?</div>'
             f'<p style="color:{TEXT_MUTED};font-size:0.88rem;line-height:1.6;">A panel logistic regression predicting '
             f'sovereign default and IMF program entry from real macro/governance fundamentals — a probability, '
             f'not a score.</p></div>', unsafe_allow_html=True)
     with ov_cols[1]:
         st.markdown(
-            f'<div class="card"><span class="phase-pill">Phase 2</span>'
+            f'<div class="card"><span class="phase-pill">Geopolitical Shocks</span>'
             f'<div style="{card_title_style}">Did this shock actually move markets?</div>'
             f'<p style="color:{TEXT_MUTED};font-size:0.88rem;line-height:1.6;">A real event study pairing GDELT '
             f'media-coverage data against real historical FX rates for 5 dated geopolitical shocks.</p></div>',
             unsafe_allow_html=True)
     with ov_cols[2]:
         st.markdown(
-            f'<div class="card"><span class="phase-pill">Phase 3</span>'
+            f'<div class="card"><span class="phase-pill">Forecast & Stress Test</span>'
             f'<div style="{card_title_style}">What happens under a shock scenario?</div>'
             f'<p style="color:{TEXT_MUTED};font-size:0.88rem;line-height:1.6;">A panel AR(1) forecasting model with '
             f'an interactive stress-test layer — apply a real oil or rate shock and see the forecast move.</p></div>',
             unsafe_allow_html=True)
+
+    st.markdown(
+        f'<p style="color:{TEXT_MUTED};font-size:0.85rem;">These three tabs are a working tool, not a build log — '
+        f'select a country or event and use it. The research methodology behind each one, including full model '
+        f'validation and what "Phase 1/2/3" originally meant during development, lives in the '
+        f'<b>Methodology &amp; Validation</b> tab.</p>', unsafe_allow_html=True,
+    )
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown('<div class="section-title">Companion tools</div>', unsafe_allow_html=True)
@@ -676,7 +683,7 @@ with tab1:
                      f'<a href="https://thecrescentbrief.substack.com" target="_blank">Read →</a></div>', unsafe_allow_html=True)
 
 with tab2:
-    st.markdown('<div class="section-title">Phase 1 — Sovereign Distress Model</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Country Risk</div>', unsafe_allow_html=True)
     st.markdown(
         f'<p style="color:{TEXT_MUTED};">A panel logistic regression predicting two real, sourced outcomes: '
         f'sovereign default and formal IMF program entry. Primary specification excludes <code>debt_to_gdp</code> '
@@ -699,7 +706,7 @@ with tab2:
         'The 5 economic factors this model is fit on (<code>current_account_pct_gdp</code>, <code>reserves_months_imports</code>, '
         '<code>gdp_growth</code>, <code>inflation</code>, <code>currency_depreciation_pct</code>) are the same 0–100 '
         '<b>normalized risk sub-scores</b> whose mislabeling was already caught and fixed for Phase 3\'s forecasting model '
-        '(see the Phase 3 tab\'s own data-limitation note) — but that exact same issue was never caught here, in the model that '
+        '(see the Forecast &amp; Stress Test tab\'s own data-limitation note) — but that exact same issue was never caught here, in the model that '
         'actually predicts distress. Real check: this panel\'s <code>current_account_pct_gdp</code> for Pakistan in 2023 reads '
         '48.3; the real value, from Phase 3\'s corrected raw data, is <b>-0.3% of GDP</b>. Real 2023 inflation was ~30.8%; this '
         'panel shows 15.7. The <b>governance</b> factors (political_stability, rule_of_law, etc.) are correctly on a 0–100 scale '
@@ -835,103 +842,15 @@ with tab2:
                 st.markdown(f'<div class="card"><div class="stat-num" style="font-size:1.4rem;">{num}</div><div class="stat-label">{label}</div></div>', unsafe_allow_html=True)
         st.caption(f"Real {chan_year} values from World Bank WDI (via this project's own fetched raw_panel.csv). High trade openness and thin reserves cover are the classic channels through which a geopolitical shock (e.g. a commodity-price spike or a sanctions regime) reaches the macro factors the model above actually uses.")
 
-    st.markdown("#### Model coefficients (primary specification, `imf_program_entry`)")
-    coef_data = pd.DataFrame({
-        "Factor": PRIMARY_FACTOR_COLS,
-        "Coefficient": [phase1_result.params[c] for c in PRIMARY_FACTOR_COLS],
-        "p-value": [phase1_result.pvalues[c] for c in PRIMARY_FACTOR_COLS],
-    })
-    coef_data["Significant (5%)"] = coef_data["p-value"].apply(lambda p: "Yes" if p < 0.05 else "No")
-    coef_data["Coefficient"] = coef_data["Coefficient"].round(4)
-    coef_data["p-value"] = coef_data["p-value"].round(3)
-    st.dataframe(coef_data, use_container_width=True, hide_index=True)
-    st.caption(
-        f"Live-fitted in this app on every load ({len(phase1_complete)} complete-case observations, "
-        f"{int(phase1_complete['imf_program_entry'].sum())} of 15 real imf_program_entry events retained) — "
-        "not a static, hand-copied table, so this can never silently drift from the model actually producing "
-        "the numbers above. Independently cross-validated in R "
-        "(glm + cluster-robust SEs) — matches almost to the decimal (e.g. political_stability: 0.0734 in both "
-        "Python and R). Full model output and the debt_to_gdp robustness check in model/distress_model.py."
-    )
-
-    # ============================================================
-    # MODEL VALIDATION -- real in-sample fit statistics AND a genuine
-    # out-of-sample temporal holdout, kept clearly separate (see
-    # historical_validation()'s own docstring for why). Language
-    # deliberately avoids "predicts crises" -- see the honest finding
-    # below for what the out-of-sample test actually shows.
-    # ============================================================
-    st.markdown("#### Model validation")
-    v1, v2 = st.columns(2)
-    with v1:
-        st.markdown(f'<div class="card"><b style="color:{TEXT};">In-sample fit</b><br>'
-                     f'<span style="color:{TEXT_MUTED};font-size:0.85rem;">Same data used to fit and evaluate — a real overfitting '
-                     f'risk with only {phase1_in_sample_val["n_events"]} positive events and 10 predictors.</span><br><br>'
-                     f'AUC: <b style="color:{ACCENT};">{phase1_in_sample_val["auc"]:.2f}</b> · '
-                     f'Correlation: <b style="color:{ACCENT};">{phase1_in_sample_val["corr"]:.2f}</b><br>'
-                     f'Top-decile event rate: <b style="color:{ACCENT2};">{phase1_in_sample_val["top_decile_rate"]:.0%}</b> vs. '
-                     f'{phase1_in_sample_val["overall_rate"]:.1%} overall</div>', unsafe_allow_html=True)
-    with v2:
-        oos = phase1_oos_val
-        oos_auc_str = f'{oos["auc"]:.2f}' if oos.get("auc") is not None else "N/A"
-        st.markdown(f'<div class="card"><b style="color:{TEXT};">Genuine out-of-sample holdout</b><br>'
-                     f'<span style="color:{TEXT_MUTED};font-size:0.85rem;">Fit on years ≤2021 only ({oos["train_events"]} real events), '
-                     f'tested on real 2022–2024 outcomes it never saw.</span><br><br>'
-                     f'Out-of-sample AUC: <b style="color:{ACCENT};">{oos_auc_str}</b><br>'
-                     f'{oos["test_events"]} real events in the {oos["test_n"]}-row test set</div>', unsafe_allow_html=True)
-
-    st.markdown(
-        '<div class="honest-box"><span class="label">Validation note</span>'
-        'The out-of-sample AUC looks moderate, but it is fit on a training set with only 4 real positive events — far below '
-        'any reasonable threshold for a stable logistic fit. More telling than the AUC itself: none of the real predicted '
-        'probabilities in the 2022-2024 holdout exceed 0.5%, and the ranking does not cleanly separate the country-years that '
-        'actually had a real event from the ones that did not — Pakistan\'s real 2023 and 2024 IMF program entries rank 4th '
-        'and 7th highest, not 1st and 2nd, among the holdout\'s predicted probabilities. <b>This model should be read as '
-        'historically associated with distress, not as an operational early-warning system</b> — it does not confidently '
-        'flag specific countries ahead of real events in this genuine holdout test.</div>',
-        unsafe_allow_html=True,
-    )
-
-    # ============================================================
-    # MODEL BENCHMARKING -- see benchmark_vs_ratings()'s own docstring for
-    # the real cross-sectional-not-longitudinal caveat.
-    # ============================================================
-    st.markdown("#### Model benchmarking — vs. real credit ratings")
-    st.markdown(
-        f'<p style="color:{TEXT_MUTED};font-size:0.9rem;">Does this model\'s current predicted probability rank countries '
-        f'similarly to how independent rating agencies currently do? Real, current S&amp;P ratings for the '
-        f'{len(phase1_benchmark)} rated countries in this panel, converted to the standard agency ordinal scale.</p>',
-        unsafe_allow_html=True,
-    )
-    bench_fig = go.Figure(go.Scatter(
-        x=phase1_benchmark["sp_numeric"], y=phase1_benchmark["predicted_prob"],
-        mode="markers+text", text=phase1_benchmark["country_code"], textposition="top center",
-        marker=dict(size=10, color=ACCENT),
-    ))
-    bench_fig.update_layout(
-        title=f"Model probability vs. real S&P rating (Spearman ρ = {phase1_benchmark_corr:.2f}, n={len(phase1_benchmark)})",
-        xaxis_title="S&P rating, worse →", yaxis_title="Model-implied probability",
-    )
-    st.plotly_chart(style_chart(bench_fig, height=380), use_container_width=True)
-    st.caption(
-        f"{phase1_benchmark_unrated} of {len(phase1_benchmark) + phase1_benchmark_unrated} countries have no real S&P rating "
-        "and are excluded here, not imputed. A moderate, positive rank correlation (ρ≈0.55) — the model broadly agrees with "
-        "real ratings. Ethiopia is a real point in the model's favor: it's in actual selective default (S&P: SD) today, and "
-        "the model independently ranks it 2nd-highest of the 19 rated countries by predicted probability — real agreement, "
-        "not assumed. Lebanon is the opposite, a genuine divergence not smoothed over: also in real SD today, yet it ranks "
-        "near the BOTTOM of this model's own current probability (18th of 19) — the model is not currently flagging its "
-        "own worst-rated, already-defaulted country. A genuine limitation, not a display error — likely because Lebanon's "
-        "most recent complete-case panel year predates the full severity of its crisis in the specific factors this model "
-        "uses. Cross-sectional snapshot only, "
-        "not a historical time-series benchmark — real ratings by year were never fetched for this project."
-    )
-
     # ============================================================
     # ANALYST BRIEFING -- a structured synthesis of everything computed
     # above for the selected country, assembled deterministically from real
     # already-computed numbers (an f-string template, not free-form
     # generated text) -- every sentence below is traceable to a specific
-    # number shown earlier on this page.
+    # number shown earlier on this page. Model coefficients, in/out-of-
+    # sample validation, and the ratings benchmark all live in the
+    # Methodology & Validation tab -- this tab is a working tool, not a
+    # build log, per direct user feedback.
     # ============================================================
     st.markdown("#### Analyst briefing")
     if country_latest.empty:
@@ -970,7 +889,7 @@ with tab2:
         )
 
 with tab3:
-    st.markdown('<div class="section-title">Phase 2 — Geopolitical Shock Module</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Geopolitical Shocks</div>', unsafe_allow_html=True)
     st.markdown(
         f'<p style="color:{TEXT_MUTED};">Real GDELT media-coverage data paired against real historical FX rates '
         f'for 5 precisely-dated shocks. Syria (Jan 2012) was dropped after a real fetch confirmed it predates '
@@ -1042,7 +961,7 @@ with tab3:
     )
 
 with tab4:
-    st.markdown('<div class="section-title">Phase 3 — Macro Forecast &amp; Stress Test</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Forecast &amp; Stress Test</div>', unsafe_allow_html=True)
     st.markdown(
         f'<p style="color:{TEXT_MUTED};">A panel AR(1) model forecasting next-year inflation, extended with real, '
         f'fetched shock drivers (oil price, US short-term rate). Growth is deliberately not forecast interactively '
@@ -1176,54 +1095,12 @@ with tab4:
         "(inflation_lag 0.5706, oil_pct_change 0.0493, rate_change -0.1531, same in both). "
         "US short-rate is `^IRX` (13-week Treasury bill), a real, standard proxy for the Fed funds "
         "rate, used after FRED's own export endpoint was confirmed as a genuine, structural dead end across 4 "
-        "real attempts."
-    )
-
-    # ============================================================
-    # LOCAL PROJECTIONS -- dynamic effects of a real oil-price shock at
-    # horizons h=0,1,2 (Jordà-style local projections, panel FE at each
-    # horizon). See fit_local_projections()'s own docstring for why only
-    # 3 horizons, not the 8-12 a textbook treatment might show.
-    # ============================================================
-    st.markdown("#### Dynamic effects — local projections")
-    st.markdown(
-        f'<p style="color:{TEXT_MUTED};font-size:0.9rem;">A separate real oil-price shock on growth and inflation, '
-        f'estimated at each horizon (h=0, 1, 2 years ahead) rather than assumed constant — the standard '
-        f'local-projections design (Jordà 2005), the same general approach the IMF\'s own geopolitical-risk '
-        f'research uses for horizon-by-horizon effects, though not its specific model.</p>', unsafe_allow_html=True,
-    )
-    lp_cols = st.columns(2)
-    for col, outcome, label, color in zip(lp_cols, ["gdp_growth", "inflation"], ["GDP growth", "Inflation"], [ACCENT, ACCENT2]):
-        with col:
-            sub = phase3_local_proj[phase3_local_proj["outcome"] == outcome].dropna(subset=["coef"])
-            fig_lp = go.Figure()
-            fig_lp.add_trace(go.Scatter(
-                x=sub["h"], y=sub["hi"], mode="lines", line=dict(width=0), showlegend=False, hoverinfo="skip",
-            ))
-            fig_lp.add_trace(go.Scatter(
-                x=sub["h"], y=sub["lo"], mode="lines", line=dict(width=0), fill="tonexty",
-                fillcolor=ACCENT_DIM if outcome == "gdp_growth" else ACCENT2_DIM, showlegend=False, hoverinfo="skip",
-            ))
-            fig_lp.add_trace(go.Scatter(x=sub["h"], y=sub["coef"], mode="lines+markers", line=dict(color=color), name="Coefficient"))
-            fig_lp.add_hline(y=0, line_dash="dot", line_color=BORDER)
-            fig_lp.update_layout(title=f"Effect of a 1pp oil-price shock on {label} (95% CI)", xaxis_title="Horizon (years)")
-            st.plotly_chart(style_chart(fig_lp, height=320), use_container_width=True)
-
-    lp_table = phase3_local_proj.copy()
-    lp_table["Significant (5%)"] = lp_table["p"].apply(lambda p: "Yes" if pd.notna(p) and p < 0.05 else "No")
-    lp_table.columns = ["Outcome", "Horizon (h)", "Coefficient", "CI low", "CI high", "p-value", "N", "Significant (5%)"]
-    st.dataframe(lp_table, use_container_width=True, hide_index=True)
-    st.caption(
-        "A real, substantive finding: the oil-shock effect on gdp_growth is positive and significant on impact "
-        "(h=0, many of these 34 economies are oil producers/exporters) but reverses to significant and negative "
-        "by h=2 — consistent with a delayed drag once higher energy costs feed through to importers and global "
-        "demand. Inflation shows no significant effect at any horizon here, consistent with the non-significant "
-        "oil coefficient already found in the stress-test model above — the same real finding surfacing twice, "
-        "not a contradiction. Panel fixed-effects regression (linearmodels.PanelOLS), clustered by country."
+        "real attempts. Dynamic (horizon-by-horizon) effects of this same oil shock are in the "
+        "Methodology &amp; Validation tab."
     )
 
 with tab5:
-    st.markdown('<div class="section-title">Methodology &amp; Limitations</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Methodology &amp; Validation</div>', unsafe_allow_html=True)
     st.markdown(
         f'<p style="color:{TEXT_MUTED};">This project was built the same way MENASA and the Gulf Tracker were: '
         f'real data only, every model independently cross-validated in a second language (R), and every real '
@@ -1232,9 +1109,22 @@ with tab5:
     )
     st.markdown(
         "Most student risk-analysis portfolios stop at scoring: assign a country a risk level and move on. "
-        "This project asks three different, connected questions instead, each answered with a genuinely "
-        "separate method, not the same scoring logic relabeled three times — see the Overview tab for what "
-        "each phase actually does, and the expandable sections below for how."
+        "This project was built in three connected phases instead, each answering a genuinely different "
+        "question with its own separate method — not the same scoring logic relabeled three times. The live "
+        "tool tabs (Country Risk, Geopolitical Shocks, Forecast &amp; Stress Test) are organized around what you "
+        "can *do* with each phase's output; this tab explains how each one was actually built, validated, and "
+        "where it's known to fall short."
+    )
+    st.markdown(
+        "**Phase 1 — Sovereign Distress Model** answers *is this country heading into distress?* with a panel "
+        "logistic regression, not an arbitrary weighted score — coefficients are estimated from real data, not "
+        "assigned by analyst judgment. **Phase 2 — Geopolitical Shock Module** answers *did this shock actually "
+        "move markets?* with a real event study, deliberately kept to n=5 rather than padded with synthetic "
+        "events. **Phase 3 — Macro Forecasting + Stress Test** answers *what happens under a shock scenario?* "
+        "with a panel AR(1) forecast extended by real, fitted shock-driver coefficients, not assumed multipliers. "
+        "Each phase's full data sources, method, and limitations are in its own expandable section below, "
+        "followed by that phase's model coefficients, validation results, and (where built) benchmarking against "
+        "independent real-world measures."
     )
     st.markdown(
         '<div class="honest-box"><span class="label">Editorial standard</span>'
@@ -1289,6 +1179,97 @@ with tab5:
             "work, not yet implemented."
         )
 
+    st.markdown("#### Model coefficients (primary specification, `imf_program_entry`)")
+    coef_data = pd.DataFrame({
+        "Factor": PRIMARY_FACTOR_COLS,
+        "Coefficient": [phase1_result.params[c] for c in PRIMARY_FACTOR_COLS],
+        "p-value": [phase1_result.pvalues[c] for c in PRIMARY_FACTOR_COLS],
+    })
+    coef_data["Significant (5%)"] = coef_data["p-value"].apply(lambda p: "Yes" if p < 0.05 else "No")
+    coef_data["Coefficient"] = coef_data["Coefficient"].round(4)
+    coef_data["p-value"] = coef_data["p-value"].round(3)
+    st.dataframe(coef_data, use_container_width=True, hide_index=True)
+    st.caption(
+        f"Live-fitted in this app on every load ({len(phase1_complete)} complete-case observations, "
+        f"{int(phase1_complete['imf_program_entry'].sum())} of 15 real imf_program_entry events retained) — "
+        "not a static, hand-copied table, so this can never silently drift from the model actually producing "
+        "the numbers above. Independently cross-validated in R "
+        "(glm + cluster-robust SEs) — matches almost to the decimal (e.g. political_stability: 0.0734 in both "
+        "Python and R). Full model output and the debt_to_gdp robustness check in model/distress_model.py."
+    )
+
+    # ============================================================
+    # MODEL VALIDATION -- real in-sample fit statistics AND a genuine
+    # out-of-sample temporal holdout, kept clearly separate (see
+    # historical_validation()'s own docstring for why). Language
+    # deliberately avoids "predicts crises" -- see the honest finding
+    # below for what the out-of-sample test actually shows.
+    # ============================================================
+    st.markdown("#### Model validation")
+    v1, v2 = st.columns(2)
+    with v1:
+        st.markdown(f'<div class="card"><b style="color:{TEXT};">In-sample fit</b><br>'
+                     f'<span style="color:{TEXT_MUTED};font-size:0.85rem;">Same data used to fit and evaluate — a real overfitting '
+                     f'risk with only {phase1_in_sample_val["n_events"]} positive events and 10 predictors.</span><br><br>'
+                     f'AUC: <b style="color:{ACCENT};">{phase1_in_sample_val["auc"]:.2f}</b> · '
+                     f'Correlation: <b style="color:{ACCENT};">{phase1_in_sample_val["corr"]:.2f}</b><br>'
+                     f'Top-decile event rate: <b style="color:{ACCENT2};">{phase1_in_sample_val["top_decile_rate"]:.0%}</b> vs. '
+                     f'{phase1_in_sample_val["overall_rate"]:.1%} overall</div>', unsafe_allow_html=True)
+    with v2:
+        oos = phase1_oos_val
+        oos_auc_str = f'{oos["auc"]:.2f}' if oos.get("auc") is not None else "N/A"
+        st.markdown(f'<div class="card"><b style="color:{TEXT};">Genuine out-of-sample holdout</b><br>'
+                     f'<span style="color:{TEXT_MUTED};font-size:0.85rem;">Fit on years ≤2021 only ({oos["train_events"]} real events), '
+                     f'tested on real 2022–2024 outcomes it never saw.</span><br><br>'
+                     f'Out-of-sample AUC: <b style="color:{ACCENT};">{oos_auc_str}</b><br>'
+                     f'{oos["test_events"]} real events in the {oos["test_n"]}-row test set</div>', unsafe_allow_html=True)
+
+    st.markdown(
+        '<div class="honest-box"><span class="label">Validation note</span>'
+        'The out-of-sample AUC looks moderate, but it is fit on a training set with only 4 real positive events — far below '
+        'any reasonable threshold for a stable logistic fit. More telling than the AUC itself: none of the real predicted '
+        'probabilities in the 2022-2024 holdout exceed 0.5%, and the ranking does not cleanly separate the country-years that '
+        'actually had a real event from the ones that did not — Pakistan\'s real 2023 and 2024 IMF program entries rank 4th '
+        'and 7th highest, not 1st and 2nd, among the holdout\'s predicted probabilities. <b>This model should be read as '
+        'historically associated with distress, not as an operational early-warning system</b> — it does not confidently '
+        'flag specific countries ahead of real events in this genuine holdout test.</div>',
+        unsafe_allow_html=True,
+    )
+
+    # ============================================================
+    # MODEL BENCHMARKING -- see benchmark_vs_ratings()'s own docstring for
+    # the real cross-sectional-not-longitudinal caveat.
+    # ============================================================
+    st.markdown("#### Model benchmarking — vs. real credit ratings")
+    st.markdown(
+        f'<p style="color:{TEXT_MUTED};font-size:0.9rem;">Does this model\'s current predicted probability rank countries '
+        f'similarly to how independent rating agencies currently do? Real, current S&amp;P ratings for the '
+        f'{len(phase1_benchmark)} rated countries in this panel, converted to the standard agency ordinal scale.</p>',
+        unsafe_allow_html=True,
+    )
+    bench_fig = go.Figure(go.Scatter(
+        x=phase1_benchmark["sp_numeric"], y=phase1_benchmark["predicted_prob"],
+        mode="markers+text", text=phase1_benchmark["country_code"], textposition="top center",
+        marker=dict(size=10, color=ACCENT),
+    ))
+    bench_fig.update_layout(
+        title=f"Model probability vs. real S&P rating (Spearman ρ = {phase1_benchmark_corr:.2f}, n={len(phase1_benchmark)})",
+        xaxis_title="S&P rating, worse →", yaxis_title="Model-implied probability",
+    )
+    st.plotly_chart(style_chart(bench_fig, height=380), use_container_width=True)
+    st.caption(
+        f"{phase1_benchmark_unrated} of {len(phase1_benchmark) + phase1_benchmark_unrated} countries have no real S&P rating "
+        "and are excluded here, not imputed. A moderate, positive rank correlation (ρ≈0.55) — the model broadly agrees with "
+        "real ratings. Ethiopia is a real point in the model's favor: it's in actual selective default (S&P: SD) today, and "
+        "the model independently ranks it 2nd-highest of the 19 rated countries by predicted probability — real agreement, "
+        "not assumed. Lebanon is the opposite, a genuine divergence not smoothed over: also in real SD today, yet it ranks "
+        "near the BOTTOM of this model's own current probability (18th of 19) — the model is not currently flagging its "
+        "own worst-rated, already-defaulted country. A genuine limitation, not a display error — likely because Lebanon's "
+        "most recent complete-case panel year predates the full severity of its crisis in the specific factors this model "
+        "uses. Cross-sectional snapshot only, "
+        "not a historical time-series benchmark — real ratings by year were never fetched for this project."
+    )
+
     with st.expander("Phase 2 — Geopolitical Shock Module: data sources, method, limitations", expanded=False):
         st.markdown(
             "**Data:** GDELT 2.0 Doc API (media tone/volume) and yfinance (real historical daily FX rates, after "
@@ -1302,13 +1283,59 @@ with tab5:
 
     with st.expander("Phase 3 — Macro Forecasting + Stress Test: data sources, method, limitations", expanded=False):
         st.markdown(
-            "**Data:** MENASA's real raw economic indicators (not the normalized risk sub-scores — see the bug "
-            "note above), plus real oil price (yfinance `CL=F`) and short-rate (yfinance `^IRX`) data.\n\n"
+            "**Data:** MENASA's real raw economic indicators (not the normalized risk sub-scores — see the "
+            "data-quality issues section below), plus real oil price (yfinance `CL=F`) and short-rate "
+            "(yfinance `^IRX`) data.\n\n"
             "**Method:** panel AR(1) fixed-effects regression, extended with real shock-driver regressors.\n\n"
             "**Limitations:** 15 years of annual data per country is thin for time-series forecasting. Growth "
             "forecasts should not be relied on. The shock coefficients in the stress-test layer are not "
             "statistically significant — real, correctly-built mechanism, not a validated precise sensitivity."
         )
+
+    # ============================================================
+    # LOCAL PROJECTIONS -- dynamic effects of a real oil-price shock at
+    # horizons h=0,1,2 (Jordà-style local projections, panel FE at each
+    # horizon). See fit_local_projections()'s own docstring for why only
+    # 3 horizons, not the 8-12 a textbook treatment might show. Moved here
+    # from the Forecast & Stress Test tab -- this is validation/methodology
+    # depth, not something a live-tool user needs front and center.
+    # ============================================================
+    st.markdown("#### Phase 3 dynamic effects — local projections")
+    st.markdown(
+        f'<p style="color:{TEXT_MUTED};font-size:0.9rem;">A separate real oil-price shock on growth and inflation, '
+        f'estimated at each horizon (h=0, 1, 2 years ahead) rather than assumed constant — the standard '
+        f'local-projections design (Jordà 2005), the same general approach the IMF\'s own geopolitical-risk '
+        f'research uses for horizon-by-horizon effects, though not its specific model.</p>', unsafe_allow_html=True,
+    )
+    lp_cols = st.columns(2)
+    for col, outcome, label, color in zip(lp_cols, ["gdp_growth", "inflation"], ["GDP growth", "Inflation"], [ACCENT, ACCENT2]):
+        with col:
+            sub = phase3_local_proj[phase3_local_proj["outcome"] == outcome].dropna(subset=["coef"])
+            fig_lp = go.Figure()
+            fig_lp.add_trace(go.Scatter(
+                x=sub["h"], y=sub["hi"], mode="lines", line=dict(width=0), showlegend=False, hoverinfo="skip",
+            ))
+            fig_lp.add_trace(go.Scatter(
+                x=sub["h"], y=sub["lo"], mode="lines", line=dict(width=0), fill="tonexty",
+                fillcolor=ACCENT_DIM if outcome == "gdp_growth" else ACCENT2_DIM, showlegend=False, hoverinfo="skip",
+            ))
+            fig_lp.add_trace(go.Scatter(x=sub["h"], y=sub["coef"], mode="lines+markers", line=dict(color=color), name="Coefficient"))
+            fig_lp.add_hline(y=0, line_dash="dot", line_color=BORDER)
+            fig_lp.update_layout(title=f"Effect of a 1pp oil-price shock on {label} (95% CI)", xaxis_title="Horizon (years)")
+            st.plotly_chart(style_chart(fig_lp, height=320), use_container_width=True)
+
+    lp_table = phase3_local_proj.copy()
+    lp_table["Significant (5%)"] = lp_table["p"].apply(lambda p: "Yes" if pd.notna(p) and p < 0.05 else "No")
+    lp_table.columns = ["Outcome", "Horizon (h)", "Coefficient", "CI low", "CI high", "p-value", "N", "Significant (5%)"]
+    st.dataframe(lp_table, use_container_width=True, hide_index=True)
+    st.caption(
+        "A real, substantive finding: the oil-shock effect on gdp_growth is positive and significant on impact "
+        "(h=0, many of these 34 economies are oil producers/exporters) but reverses to significant and negative "
+        "by h=2 — consistent with a delayed drag once higher energy costs feed through to importers and global "
+        "demand. Inflation shows no significant effect at any horizon here, consistent with the non-significant "
+        "oil coefficient already found in the stress-test model above — the same real finding surfacing twice, "
+        "not a contradiction. Panel fixed-effects regression (linearmodels.PanelOLS), clustered by country."
+    )
 
     st.markdown("#### Data-quality issues identified and corrected during development")
     bug_cols = st.columns(3)
