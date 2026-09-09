@@ -146,14 +146,27 @@ comes from, using real, newly-fetched data:
 - **Peer-relative percentiles and real "what changed" attribution**
   (`model/peer_comparison.py`).
 
+**In progress:** a real bilateral trade/spillover network (`data/fetch_trade_network.py`,
+`model/trade_network.py`) is built end-to-end against UN Comtrade's real
+API — gated on a free `COMTRADE_API_KEY` repo secret not yet registered.
+Shows "not yet available" in the app, never a fabricated placeholder.
+
 **Deliberately not added, with the real reason** (see the live app's
-Methodology tab for the full list): a bilateral trade/spillover network
-(needs a UN Comtrade subscription key nobody has registered), per-country
-sovereign CDS/EMBI/bond yields (confirmed absent from every free API this
-project has access to), climate/resource vulnerability indices (no
-reliable free fetchable pipeline), and a continuous conflict-intensity
-panel (ACLED requires a separate account registration). None of these are
-approximated with invented data.
+Methodology tab for the full list): per-country sovereign CDS/EMBI/bond
+yields (confirmed absent from every free API this project has access to),
+climate/resource vulnerability indices (no reliable free fetchable
+pipeline), and a continuous conflict-intensity panel (ACLED requires a
+separate account registration). None of these are approximated with
+invented data.
+
+**A real bug caught by validating the sub-indices, since fixed:** the 5
+governance-named factors' assumed risk direction was backwards in the new
+sub-index code — they're named like quality scores but this dataset's
+actual values run the opposite way (confirmed against raw data and against
+Phase 1's own already-validated model). `institutional_risk`'s AUC against
+real distress history was 0.24 (inverted) before the fix, 0.76 (correctly
+directed) after. Phase 1's actual predictive model was never affected — it
+never assumed a direction to begin with. See `model/validate_sub_indices.py`.
 
 ## Research summary
 
