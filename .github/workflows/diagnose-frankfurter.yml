@@ -1,4 +1,4 @@
-name: Diagnose Frankfurter API endpoint (Phase 2, one-shot)
+name: Diagnose FX data sources (Phase 2, one-shot)
 
 on:
   workflow_dispatch: {}
@@ -13,9 +13,12 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Test candidate Frankfurter endpoints
+      - name: Install yfinance
+        run: pip install yfinance
+
+      - name: Test yfinance for the 5 shock-event currency pairs
         working-directory: shock-module
         env:
           PYTHONUNBUFFERED: "1"
-        timeout-minutes: 3
-        run: python -u diagnose_frankfurter.py
+        timeout-minutes: 5
+        run: python -u diagnose_yfinance.py
