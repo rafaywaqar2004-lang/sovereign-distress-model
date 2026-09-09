@@ -438,7 +438,8 @@ phase3_local_proj = fit_local_projections(phase3_panel, phase3_drivers)
 _sys.path.insert(0, os.path.join(HERE, "model"))
 from risk_architecture import SUB_INDICES, CONTEXT_ONLY, build_sub_indices  # noqa: E402
 from peer_comparison import DIRECTION, latest_value_per_country, what_changed, top_movers  # noqa: E402
-from chokepoint_exposure import MARITIME_CHOKEPOINTS, exposure_summary  # noqa: E402
+from chokepoint_exposure import MARITIME_CHOKEPOINTS, CHOKEPOINT_EXPOSURE, exposure_summary  # noqa: E402
+from trade_infrastructure import TRADE_BLOCS, TRADE_BLOCS_SOURCE, MAJOR_PORTS, PORTS_SOURCE  # noqa: E402
 
 
 @st.cache_data
@@ -562,12 +563,13 @@ for col, (num, label) in zip(stat_cols, stats):
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "Overview",
     "Country Risk",
     "Geopolitical Shocks",
     "Forecast & Stress Test",
     "Methodology & Validation",
+    "Trade & Infrastructure",
 ])
 
 with tab1:
@@ -1736,3 +1738,80 @@ with tab5:
         'target="_blank" style="font-family:\'IBM Plex Mono\',monospace;font-size:0.85rem;">View full source on GitHub →</a></div>',
         unsafe_allow_html=True,
     )
+
+with tab6:
+    st.markdown('<div class="section-title">Trade &amp; Infrastructure</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<p style="color:{TEXT_MUTED};">Real, well-established geo-economic context for the 34 tracked countries '
+        f'— multilateral trade/political blocs, major seaports, and maritime chokepoints. A reference layer, not '
+        f'folded into any risk score. See the honest note below on how this differs from the rest of the app\'s '
+        f'live-fetched data.</p>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div class="honest-box"><span class="label">How this data differs from the rest of the app</span>'
+        'Trade-bloc memberships are copied verbatim from the companion overeign-risk-index project\'s own cited '
+        'research. Ports are general, well-established geographic/economic knowledge — real facts, but NOT '
+        'independently re-verified against a primary source in this session, and deliberately excluding specific '
+        'recent statistics (TEU throughput, rankings) that change year to year and weren\'t confirmed live. '
+        'Chokepoint risk levels and sourcing are documented in Methodology &amp; Validation.</div>',
+        unsafe_allow_html=True,
+    )
+
+    tf_country = st.selectbox(
+        "Select a country", sorted(COUNTRIES.keys()), format_func=lambda c: COUNTRIES.get(c, c),
+        key="trade_infra_country",
+    )
+
+    tf_col1, tf_col2 = st.columns(2)
+    with tf_col1:
+        st.markdown("#### Trade &amp; political blocs")
+        bloc_info = TRADE_BLOCS.get(tf_country)
+        if bloc_info:
+            memberships = "".join(f"<li>{m}</li>" for m in bloc_info["memberships"])
+            st.markdown(
+                f'<div class="card"><b>Primary bloc:</b> {bloc_info["primary_bloc"]}<br>'
+                f'<b>All real memberships:</b><ul>{memberships}</ul></div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.caption("No bloc data for this country.")
+
+    with tf_col2:
+        st.markdown("#### Major seaports")
+        ports = MAJOR_PORTS.get(tf_country, [])
+        if ports:
+            for p in ports:
+                st.markdown(
+                    f'<div class="card"><b>{p["name"]}</b><br>'
+                    f'<span style="color:{TEXT_MUTED};font-size:0.85rem;">{p["note"]}</span></div>',
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.caption("No port data for this country.")
+
+    chokepoints, chokepoint_risk_tf = exposure_summary(tf_country)
+    if chokepoints:
+        names_tf = ", ".join(MARITIME_CHOKEPOINTS[k]["name"] for k in chokepoints)
+        st.markdown(
+            f'<div class="honest-box"><span class="label">Chokepoint exposure</span>'
+            f'{COUNTRIES.get(tf_country, tf_country)} has direct real exposure to: <b>{names_tf}</b> '
+            f'(current risk level: {chokepoint_risk_tf}).</div>',
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("#### All 3 tracked maritime chokepoints")
+    ck_cols = st.columns(3)
+    for col, (key, info) in zip(ck_cols, MARITIME_CHOKEPOINTS.items()):
+        exposed_countries = [c for c, keys in CHOKEPOINT_EXPOSURE.items() if key in keys]
+        with col:
+            st.markdown(
+                f'<div class="card"><b style="color:{ACCENT};">{info["name"]}</b><br>'
+                f'<span style="color:{BAD if info["risk_level"]=="Critical" else WARN};font-weight:600;">{info["risk_level"]} risk</span><br>'
+                f'<span style="color:{TEXT_MUTED};font-size:0.8rem;">{info["notes"]}</span><br><br>'
+                f'<b style="font-size:0.8rem;">Exposed tracked countries:</b> {", ".join(COUNTRIES.get(c,c) for c in exposed_countries)}<br>'
+                f'<span style="color:{TEXT_MUTED};font-size:0.75rem;">Source: {info["source"]}</span></div>',
+                unsafe_allow_html=True,
+            )
+
+    st.caption(f"{TRADE_BLOCS_SOURCE} · {PORTS_SOURCE}")
