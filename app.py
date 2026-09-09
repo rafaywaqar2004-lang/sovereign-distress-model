@@ -317,10 +317,14 @@ def _lerp_hex(c1, c2, t):
     return f"rgb({round(r1 + (r2 - r1) * t)},{round(g1 + (g2 - g1) * t)},{round(b1 + (b2 - b1) * t)})"
 
 
+_TRACKED_ZERO_FLOOR = 0.22  # real fix -- see build_coverage_map() docstring on the "invisible 21" bug
+
+
 def _event_color(count, max_events, surface_alt, accent, accent2):
-    if max_events == 0:
-        return surface_alt
-    t = count / max_events
+    # A tracked country with zero real events must still read as tracked,
+    # not blend into the "outside this panel" background -- floored at a
+    # dim, visible tint rather than 0.
+    t = _TRACKED_ZERO_FLOOR if max_events == 0 else max(_TRACKED_ZERO_FLOOR, count / max_events)
     return _lerp_hex(surface_alt, accent, t / 0.5) if t <= 0.5 else _lerp_hex(accent, accent2, (t - 0.5) / 0.5)
 
 
@@ -358,6 +362,13 @@ def build_coverage_map(world_geojson, events_by_ne_code, max_events, bg, surface
         tracked = ne_code in events_by_ne_code
         count = events_by_ne_code.get(ne_code, 0)
         fill_color = _event_color(count, max_events, surface_alt, accent, accent2) if tracked else surface_alt
+        # Real fix -- a tracked country with 0 events was rendering in the exact
+        # same fill as a country outside this project's panel entirely (21 of the
+        # 34 tracked countries have 0 real events, so most of the map was reading
+        # as "not tracked"). A visible border on every tracked country now makes
+        # all 34 identifiable regardless of fill.
+        line_color = accent if tracked else border
+        line_width = 0.9 if tracked else 0.6
         hover = (
             f"<b>{name}</b><br>Real distress events (2010–2024): {count}"
             if tracked else f"<b>{name}</b><br>Outside this project's 34-country panel"
@@ -376,7 +387,7 @@ def build_coverage_map(world_geojson, events_by_ne_code, max_events, bg, surface
 
         fig.add_trace(go.Scatter(
             x=lons, y=lats, mode="lines", fill="toself",
-            fillcolor=fill_color, line=dict(color=border, width=0.6),
+            fillcolor=fill_color, line=dict(color=line_color, width=line_width),
             hoveron="fills", hoverinfo="text", text=hover,
             name=name, showlegend=False,
         ))
@@ -400,8 +411,9 @@ st.plotly_chart(
 )
 st.caption(
     "Colored by each country's own real, counted total of sovereign defaults and IMF program entries "
-    "in this panel (2010–2024) — not an invented composite risk score. Countries in gray are outside "
-    "this project's 34-economy panel. Equirectangular projection, not a precision GIS map."
+    "in this panel (2010–2024) — not an invented composite risk score. All 34 tracked countries are outlined; "
+    "21 of them have 0 real events in this panel and show as a dim tint, not the same plain gray as the "
+    "countries genuinely outside this project's 34-economy panel. Equirectangular projection, not a precision GIS map."
 )
 
 st.markdown("<br>", unsafe_allow_html=True)
