@@ -16,7 +16,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Fetch Frankfurter FX rates
+      - name: Install yfinance
+        run: pip install yfinance
+
+      - name: Fetch FX rates via yfinance
         working-directory: shock-module
         env:
           PYTHONUNBUFFERED: "1"
@@ -28,5 +31,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add shock-module/fx_timelines_raw.json
-          git diff --staged --quiet && echo "No data changes" || git commit -m "Fetch historical FX rates around shock events"
+          git diff --staged --quiet && echo "No data changes" || git commit -m "Fetch historical FX rates around shock events (yfinance)"
           git push
