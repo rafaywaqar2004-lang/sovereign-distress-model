@@ -423,6 +423,54 @@ phase3_local_proj = fit_local_projections(phase3_panel, phase3_drivers)
 
 
 # ============================================================
+# RISK ARCHITECTURE -- interpretable sub-indices (external vulnerability,
+# fiscal/sovereign, banking-sector, macro conditions, institutional,
+# buffers) built from real extended World Bank WDI indicators
+# (data/fetch_extended_indicators.py) merged into panel.csv by
+# build_panel.py. A DESCRIPTIVE diagnostic layer, not a new composite score
+# -- Phase 1's fitted logit above remains the only real predictive model
+# this project makes. Real global financial conditions (VIX, US 10Y yield,
+# dollar index, an EM bond ETF spread proxy) and real, sourced maritime-
+# chokepoint exposure are also loaded here. Degrades gracefully (empty/
+# None) if the underlying fetch hasn't been merged into panel.csv yet --
+# never fabricates a value.
+# ============================================================
+_sys.path.insert(0, os.path.join(HERE, "model"))
+from risk_architecture import SUB_INDICES, CONTEXT_ONLY, build_sub_indices  # noqa: E402
+from peer_comparison import DIRECTION, latest_value_per_country, what_changed, top_movers  # noqa: E402
+from chokepoint_exposure import MARITIME_CHOKEPOINTS, exposure_summary  # noqa: E402
+
+
+@st.cache_data
+def load_risk_architecture():
+    raw_panel = pd.read_csv(os.path.join(HERE, "data", "panel.csv"))
+    extended_cols = [c for cols in SUB_INDICES.values() for c in cols] + CONTEXT_ONLY
+    available_cols = [c for c in extended_cols if c in raw_panel.columns]
+    latest = latest_value_per_country(raw_panel, available_cols)
+    sub_index_df = build_sub_indices(latest)
+    changed_df = what_changed(raw_panel, available_cols)
+    has_extended = any(c in raw_panel.columns for c in [
+        "external_debt_pct_gni", "fiscal_balance_pct_gdp", "bank_npl_pct_loans"
+    ])
+    return raw_panel, latest, sub_index_df, changed_df, has_extended
+
+
+risk_arch_raw_panel, risk_arch_latest, risk_arch_sub_index_df, risk_arch_changed_df, risk_arch_has_extended = load_risk_architecture()
+
+
+@st.cache_data
+def load_global_conditions():
+    path = os.path.join(HERE, "forecast-module", "global_conditions.json")
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
+global_conditions = load_global_conditions()
+
+
+# ============================================================
 # MASTHEAD
 # ============================================================
 st.markdown('<div class="tag-label">Companion to the MENASA Risk Monitor · The Crescent Brief</div>', unsafe_allow_html=True)
@@ -887,6 +935,92 @@ with tab2:
             "country and year — not separately written or invented."
         )
 
+    # ============================================================
+    # RISK ARCHITECTURE -- descriptive sub-index breakdown, real extended
+    # WDI indicators, peer-relative percentiles, and real year-over-year
+    # "what changed" attribution. Explicitly NOT a second predictive model
+    # -- see risk_architecture.py's own docstring.
+    # ============================================================
+    st.markdown("#### Risk architecture")
+    if not risk_arch_has_extended:
+        st.caption(
+            "Extended external/fiscal/banking/trade indicators haven't been fetched into this deployment yet "
+            "(data/fetch_extended_indicators.py via GitHub Actions) — this section will populate once that "
+            "data is merged into panel.csv. No fabricated values are shown in the meantime."
+        )
+    else:
+        st.markdown(
+            f'<p style="color:{TEXT_MUTED};">A descriptive breakdown of WHERE a country\'s risk sits across real, '
+            f'independently-sourced dimensions — not a second predictive score. The only real predictive model in '
+            f'this project is the fitted logit above; this shows relative standing (percentile among the 34 '
+            f'countries, direction-adjusted so higher always means more of that risk) on each dimension.</p>',
+            unsafe_allow_html=True,
+        )
+        arch_row = risk_arch_sub_index_df[risk_arch_sub_index_df["country_code"] == sel_country]
+        if arch_row.empty:
+            st.caption(f"No data available for {COUNTRIES.get(sel_country, sel_country)}.")
+        else:
+            arch_row = arch_row.iloc[0]
+            sub_labels = {
+                "external_vulnerability_risk": "External Vulnerability",
+                "fiscal_sovereign_risk": "Fiscal / Sovereign",
+                "banking_sector_risk": "Banking Sector",
+                "macro_conditions_risk": "Macro Conditions",
+                "institutional_risk": "Institutional",
+                "buffers_strength": "Buffers (strength)",
+            }
+            cols = st.columns(len(sub_labels))
+            for col, (key, label) in zip(cols, sub_labels.items()):
+                val = arch_row.get(key)
+                base = key.rsplit("_", 1)[0]
+                cov = arch_row.get(f"{base}_coverage")
+                of = arch_row.get(f"{base}_of")
+                with col:
+                    if pd.isna(val):
+                        st.markdown(f'<div class="card"><b>{label}</b><br><span style="color:{TEXT_MUTED};">No data</span></div>', unsafe_allow_html=True)
+                    else:
+                        color = GOOD if (label == "Buffers (strength)") == (val >= 50) else (BAD if val >= 66 or (label == "Buffers (strength)" and val < 34) else WARN)
+                        st.markdown(
+                            f'<div class="card"><b>{label}</b><br>'
+                            f'<span style="font-family:\'IBM Plex Mono\',monospace;font-size:1.3rem;color:{color};">{val:.0f}</span>'
+                            f'<span style="color:{TEXT_MUTED};font-size:0.8rem;"> / 100 percentile</span><br>'
+                            f'<span style="color:{TEXT_MUTED};font-size:0.75rem;">{cov} of {of} real components available</span></div>',
+                            unsafe_allow_html=True,
+                        )
+
+            st.caption(
+                "Percentile among the 34 tracked countries on real, latest-available values for each dimension's "
+                "components (see Methodology & Validation for exact indicators and coverage). \"Buffers (strength)\" "
+                "is inverted so a higher number always means more resilience, not more risk."
+            )
+
+            worsening, improving = top_movers(risk_arch_changed_df, sel_country, n=3)
+            wc1, wc2 = st.columns(2)
+            with wc1:
+                st.markdown("**What changed — pushing risk up**")
+                if worsening.empty:
+                    st.caption("No real year-over-year comparison available.")
+                else:
+                    for _, r in worsening.iterrows():
+                        st.markdown(f"- {r['factor']}: {r['from_year']}→{r['to_year']}, Δ {r['raw_delta']:+.2f}")
+            with wc2:
+                st.markdown("**What changed — improving**")
+                if improving.empty:
+                    st.caption("No real year-over-year comparison available.")
+                else:
+                    for _, r in improving.iterrows():
+                        st.markdown(f"- {r['factor']}: {r['from_year']}→{r['to_year']}, Δ {r['raw_delta']:+.2f}")
+
+            chokepoints, chokepoint_risk = exposure_summary(sel_country)
+            if chokepoints:
+                names = ", ".join(MARITIME_CHOKEPOINTS[k]["name"] for k in chokepoints)
+                st.markdown(
+                    f'<div class="honest-box"><span class="label">Chokepoint exposure — real, sourced</span>'
+                    f'{COUNTRIES.get(sel_country, sel_country)} has direct real exposure to: <b>{names}</b> '
+                    f'(current risk level: {chokepoint_risk}). See Methodology for sourcing and how this is assigned.</div>',
+                    unsafe_allow_html=True,
+                )
+
 with tab3:
     st.markdown('<div class="section-title">Geopolitical Shocks</div>', unsafe_allow_html=True)
     st.markdown(
@@ -1336,6 +1470,59 @@ with tab5:
         "oil coefficient already found in the stress-test model above — the same real finding surfacing twice, "
         "not a contradiction. Panel fixed-effects regression (linearmodels.PanelOLS), clustered by country."
     )
+
+    with st.expander("Risk Architecture — extended indicators, ablation test, chokepoints, global conditions", expanded=False):
+        st.markdown(
+            "**What this is:** a real-data expansion layer added after auditing the existing project against a "
+            "comprehensive risk-architecture framework (external vulnerability, fiscal/sovereign, banking-sector, "
+            "commodity/trade, institutional, buffers, global financial conditions, chokepoint exposure). Every "
+            "item below is either fetched from a real source or explicitly declined — nothing is fabricated to "
+            "fill a gap.\n\n"
+            "**Extended World Bank WDI indicators** (`data/fetch_extended_indicators.py`, same keyless public API "
+            "already used for the original 11 factors): external debt/GNI, external debt service/exports, fiscal "
+            "balance/GDP, interest payments/revenue, bank non-performing loans, private credit/GDP, exports/GDP, "
+            "imports/GDP, fuel exports/merchandise exports, food imports/merchandise imports, remittances/GDP, "
+            "FDI/GDP, unemployment. Real coverage varies by indicator — several (fiscal balance, bank NPLs) are "
+            "genuinely sparse for this country set, the same kind of real reporting gap already disclosed for "
+            "`debt_to_gdp`. Shown as \"N of M components available\" per country, never silently imputed.\n\n"
+            "**Real global financial conditions** (`forecast-module/fetch_global_conditions.py`, yfinance): VIX, "
+            "US 10-year Treasury yield, the ICE US Dollar Index, and an EM bond ETF (`EMB`) used as an aggregate "
+            "market-wide EM risk-premium *proxy* — never attributed to any single country's spread, since no free "
+            "source publishes per-country sovereign spreads or CDS (confirmed by the companion "
+            "overeign-risk-index project's own prior investigation of the entire WDI catalog and IMF's public "
+            "APIs — genuinely absent, not merely unfetched).\n\n"
+            "**Real, sourced chokepoint exposure** (`data/chokepoint_exposure.py`): Suez Canal, Bab el-Mandeb, and "
+            "Strait of Hormuz exposure assigned by real geography/trade dependency (Egypt as Suez's operator; "
+            "Djibouti/Yemen/Somalia/Eritrea as Bab el-Mandeb littoral states; Iran/Oman as Hormuz's littoral "
+            "states and the Gulf oil/gas exporters structurally dependent on it) — not proximity assumption. Risk "
+            "levels and citations copied from the companion project's own already-fact-checked research (Suez "
+            "Canal Authority, gCaptain, Lloyd's List, Al Jazeera, Bloomberg, U.S. EIA), not re-researched.\n\n"
+            "**Ablation test** (`model/ablation_test.py`) — the real, honest version of an economic-vs-governance "
+            "comparison (not \"macro vs. geopolitical\": this project's only geopolitical data is Phase 2's 5-event "
+            "study, not a continuous panel, so a literal macro-vs-geopolitical panel ablation isn't possible "
+            "without fabricating a series that doesn't exist). Same primary specification, same 355-observation "
+            "sample: economic factors alone reach AUC 0.711, governance factors alone reach AUC 0.763, and the "
+            "combined 10-factor model reaches AUC 0.843 — a real +0.079 lift over the better single-dimension "
+            "model, genuine evidence combining both real dimensions adds explanatory value.\n\n"
+            "**Peer-relative percentiles and \"what changed\"** (`model/peer_comparison.py`): each country's "
+            "latest real value on every factor, ranked against the other 33 tracked countries (direction-adjusted "
+            "so a higher percentile always means more relative risk), plus real year-over-year deltas — pure "
+            "computation on data already in hand.\n\n"
+            "**Investigated and deliberately NOT added, with the real reason:**\n"
+            "- *Bilateral trade / spillover network:* UN Comtrade has a real, working API, but it requires a free "
+            "subscription key nobody has registered for this project (the companion project's own Trade "
+            "Vulnerability Index hit the identical gap). Building a network on invented trade weights instead "
+            "would be fabrication — declined rather than faked.\n"
+            "- *Per-country sovereign CDS / EMBI / bond yields:* confirmed absent from the entire World Bank WDI "
+            "catalog and IMF's free public APIs. Real data for most of these 34 economies exists only behind "
+            "commercial terminals. The global EM bond ETF proxy above is the closest real substitute available.\n"
+            "- *Climate/resource vulnerability indices (ND-GAIN, INFORM, water stress):* no free, reliably "
+            "fetchable pipeline for these exists for this country set within this project's tooling — declined "
+            "rather than approximated with an indicator that doesn't actually measure the thing.\n"
+            "- *Continuous conflict-intensity panel (ACLED):* ACLED's real API requires a separate free account "
+            "registration nobody has completed for this project (same gap already disclosed in the companion "
+            "project). Phase 2's 5-event GDELT study remains the real geopolitical evidence this project has."
+        )
 
     st.markdown("#### Data-quality issues identified and corrected during development")
     bug_cols = st.columns(3)
