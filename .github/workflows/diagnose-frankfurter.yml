@@ -1,0 +1,21 @@
+name: Diagnose Frankfurter API endpoint (Phase 2, one-shot)
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Test candidate Frankfurter endpoints
+        working-directory: shock-module
+        env:
+          PYTHONUNBUFFERED: "1"
+        timeout-minutes: 3
+        run: python -u diagnose_frankfurter.py
