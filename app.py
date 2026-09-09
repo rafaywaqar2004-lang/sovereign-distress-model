@@ -489,6 +489,18 @@ def load_global_conditions():
 global_conditions = load_global_conditions()
 
 
+@st.cache_data
+def load_country_equity_signals():
+    path = os.path.join(HERE, "forecast-module", "country_equity_signals.json")
+    if not os.path.exists(path):
+        return {}
+    with open(path) as f:
+        return json.load(f)
+
+
+country_equity_signals = load_country_equity_signals()
+
+
 # ============================================================
 # TRADE NETWORK / SPILLOVER -- real UN Comtrade bilateral trade data, once
 # fetched (data/fetch_trade_network.py, gated on a real COMTRADE_API_KEY
@@ -1065,6 +1077,19 @@ with tab2:
                     unsafe_allow_html=True,
                 )
 
+            eq_signal = country_equity_signals.get(sel_country)
+            if eq_signal:
+                years = sorted(int(y) for y in eq_signal["annual_avg_close_usd"].keys())
+                vals = [eq_signal["annual_avg_close_usd"][str(y)] for y in years]
+                fig_eq = go.Figure(go.Scatter(x=years, y=vals, line=dict(color=ACCENT), fill="tozeroy"))
+                fig_eq.update_layout(title=f"Real {eq_signal['ticker']} annual average close (USD) — market-implied signal for {COUNTRIES.get(sel_country, sel_country)}")
+                st.plotly_chart(style_chart(fig_eq, height=260), use_container_width=True)
+                st.caption(
+                    f"A single-country equity ETF ({eq_signal['ticker']}), not a bond yield or CDS spread — this "
+                    f"project has confirmed no free source publishes those. Real market price action, a different "
+                    f"real signal, not a substitute."
+                )
+
 with tab3:
     st.markdown('<div class="section-title">Geopolitical Shocks</div>', unsafe_allow_html=True)
     st.markdown(
@@ -1586,6 +1611,13 @@ with tab5:
             "sample: economic factors alone reach AUC 0.711, governance factors alone reach AUC 0.763, and the "
             "combined 10-factor model reaches AUC 0.843 — a real +0.079 lift over the better single-dimension "
             "model, genuine evidence combining both real dimensions adds explanatory value.\n\n"
+            "**Real per-country equity market signals** (`forecast-module/fetch_country_equity_signals.py`, "
+            "yfinance): single-country ETF price series for the 8 tracked countries where one actually exists "
+            "and is still trading (TUR, ISR, IND, SAU, EGY, QAT, ARE, PAK) — tested against a broader candidate "
+            "list first; 2 candidates that returned data but couldn't be confirmed as genuinely representing "
+            "their country (anomalous short histories, likely a different company sharing the ticker) were "
+            "excluded rather than mislabeled. Not a bond yield or CDS substitute — a different real, market-"
+            "implied signal, for the 8 of 34 countries where one exists.\n\n"
             "**Sub-index validation** (`model/validate_sub_indices.py`) — the 6 sub-indices below are diagnostic, "
             "not predictive (Phase 1's fitted logit remains the only real predictive model here), but they were "
             "checked anyway: does a sub-index's current standing associate with whether a country has EVER had a "
