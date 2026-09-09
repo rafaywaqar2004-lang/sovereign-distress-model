@@ -30,7 +30,7 @@ jobs:
           PYTHONUNBUFFERED: "1"
           COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
           FETCH_TRADE_NETWORK_COUNTRIES: ${{ inputs.countries }}
-        timeout-minutes: 15
+        timeout-minutes: 45
         run: python -u fetch_trade_network.py
 
       - name: Commit fetched data if anything changed

@@ -25,11 +25,14 @@ that reporter's full partner breakdown -- not a call per country-pair.
 """
 import json
 import os
+import re
 import subprocess
 import time
 from datetime import datetime, timezone
 
 import pandas as pd
+
+RATE_LIMIT_RE = re.compile(r"Try again in (\d+) second")
 
 COUNTRIES = [
     "DZA", "BHR", "EGY", "IRN", "IRQ", "ISR", "JOR", "KWT", "LBN", "LBY",
@@ -65,12 +68,33 @@ if _debug_subset:
     COUNTRIES = [c.strip() for c in _debug_subset.split(",") if c.strip()]
 
 
-def fetch_reporter_flow(country_code, flow_code, retries=2):
+def _request(url):
+    result = subprocess.run(
+        ["curl", "-s", "-m", "20", "-H", f"Ocp-Apim-Subscription-Key: {API_KEY}", url],
+        capture_output=True, text=True, timeout=25,
+    )
+    if result.returncode != 0 or not result.stdout:
+        return None
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return None
+
+
+def fetch_reporter_flow(country_code, flow_code, max_rate_limit_waits=8):
     """Real partner-level annual trade data for one reporter/flow. Tries
     the latest year, then up to 2 years back (Comtrade's real reporting lag
     is commonly 12-24 months) -- same fallback pattern already proven in
-    fetch_trade_hhi. Returns (year, list of {partner_code_num, value_usd})
-    or (None, []) if nothing real was found."""
+    fetch_trade_hhi. Real, disclosed fix: the free tier's own rate limiter
+    returns a "Try again in N seconds" message -- this parses and actually
+    respects that real hint (waiting the exact time the server asks for)
+    rather than guessing a fixed delay, which is what caused 20 of 34
+    countries to come back with real data missing on the first full run
+    even though every single one of them has real Comtrade data (confirmed
+    directly: India/Turkey/Pakistan, three of the "missing" ones, returned
+    full real data instantly once fetched in isolation). Returns
+    (year, list of {partner_code_num, value_usd}) or (None, []) only if a
+    year genuinely has no data after real rate-limit waits are exhausted."""
     reporter = COMTRADE_REPORTER_CODES[country_code]
     for year in (CURRENT_YEAR - 1, CURRENT_YEAR - 2, CURRENT_YEAR - 3):
         url = (
@@ -79,30 +103,29 @@ def fetch_reporter_flow(country_code, flow_code, retries=2):
             "&partnerCode=&partner2Code=0&customsCode=C00&motCode=0&includeDesc=false"
             f"&subscription-key={API_KEY}"
         )
-        result = None
-        for _ in range(retries):
-            result = subprocess.run(
-                ["curl", "-s", "-m", "20", "-H", f"Ocp-Apim-Subscription-Key: {API_KEY}", url],
-                capture_output=True, text=True, timeout=25,
-            )
-            if result.returncode == 0 and result.stdout:
+        payload = None
+        for attempt in range(max_rate_limit_waits):
+            payload = _request(url)
+            if payload is None:
+                time.sleep(2)
+                continue
+            if isinstance(payload, dict) and payload.get("statusCode") and payload.get("statusCode") != 200:
+                message = payload.get("message", "unknown error")
+                m = RATE_LIMIT_RE.search(message)
+                if m:
+                    wait = int(m.group(1)) + 1
+                    print(f"  {country_code} {flow_code} {year}: rate-limited, waiting {wait}s (attempt {attempt + 1}/{max_rate_limit_waits})")
+                    time.sleep(wait)
+                    payload = None
+                    continue
+                print(f"  {country_code} {flow_code} {year}: rejected -- {message}")
+                payload = None
                 break
-            time.sleep(1)
+            break
 
-        if result is None or result.returncode != 0 or not result.stdout:
+        if payload is None:
             continue
-        try:
-            payload = json.loads(result.stdout)
-        except json.JSONDecodeError:
-            continue
-
-        if isinstance(payload, dict) and payload.get("statusCode") and payload.get("statusCode") != 200:
-            print(f"  {country_code} {flow_code} {year}: rejected -- {payload.get('message', 'unknown error')}")
-            continue
-
         rows = payload.get("data", []) if isinstance(payload, dict) else []
-        print(f"  {country_code} {flow_code} {year}: raw response had {len(rows)} rows before filtering "
-              f"(payload keys: {list(payload.keys()) if isinstance(payload, dict) else type(payload)})")
         partner_rows = [
             {"partner_comtrade_code": r["partnerCode"], "value_usd": r["primaryValue"]}
             for r in rows if r.get("partnerCode", 0) != 0 and r.get("primaryValue")
