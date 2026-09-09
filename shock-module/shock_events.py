@@ -35,9 +35,20 @@ SHOCK_EVENTS = [
         "label": "Pakistan Stand-By Arrangement approved",
         "source": "IMF Executive Board approval date, per this project's own distress_events.py / MENASA's FINANCING_ARRANGEMENTS.",
     },
-    {
-        "country_code": "SYR", "event_date": "2012-01-01",
-        "label": "Syria civil war escalation (approximate marker)",
-        "source": "MENASA's own SYR validation case marks 2011->2012 as the escalation year; no single precise day exists for a gradually escalating civil war, so 2012-01-01 is used as an approximate marker, not a specific dated event like the others above. Flagged explicitly as lower-precision.",
-    },
 ]
+
+# Syria's civil war escalation (2011->2012, MENASA's own validation case) was
+# originally included here at an approximate 2012-01-01 marker. Removed after
+# the first real GDELT fetch run confirmed it structurally cannot work: the
+# GDELT 2.0 Doc API only indexes data from FEBRUARY 2015 onward. A January
+# 2012 event is entirely outside that coverage window -- the fetch script
+# correctly returned zero data for it (not a bug, a real API limitation), and
+# no amount of retrying changes that. Kept here as a documented exclusion
+# rather than silently dropped, since it's a genuine scope constraint worth
+# knowing about for any future event added to SHOCK_EVENTS: GDELT-based event
+# studies in this module are only valid for events from 2015 onward.
+SYRIA_EXCLUDED = {
+    "country_code": "SYR", "event_date": "2012-01-01",
+    "label": "Syria civil war escalation (approximate marker)",
+    "reason": "Predates GDELT 2.0 Doc API's coverage window (data starts February 2015). Confirmed by a real fetch attempt returning zero data on all retries, not assumed.",
+}

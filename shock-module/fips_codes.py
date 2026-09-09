@@ -35,7 +35,7 @@ ISO3_TO_FIPS = {
     "MDV": "MV",  # Maldives
     "NPL": "NP",  # Nepal
     "PAK": "PK",  # Pakistan
-    "LKA": "CE",  # Sri Lanka -- CONFIDENCE_FLAGGED (FIPS "CE" = Ceylon, not obviously "LK")
+    "LKA": "CE",  # Sri Lanka -- CONFIRMED CORRECT: real fetch on 2026-09-09 returned 61 tone + 61 volume points
     "TUR": "TU",  # Turkey
     "SDN": "SU",  # Sudan
     "SSD": "OD",  # South Sudan -- CONFIDENCE_FLAGGED (newer country, FIPS code less commonly seen)
@@ -49,4 +49,5 @@ ISO3_TO_FIPS = {
     # combine, or pick one) before adding -- not guessed here.
 }
 
-CONFIDENCE_FLAGGED = {"ARE", "LKA", "SSD"}
+CONFIDENCE_FLAGGED = {"ARE", "SSD"}
+# LKA removed 2026-09-09 -- confirmed correct by a real fetch (see comment above).
