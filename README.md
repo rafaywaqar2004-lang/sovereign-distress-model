@@ -93,8 +93,12 @@ cd ../model && python3 distress_model.py
 - This is a research/portfolio product, not investment advice or an
   official IMF/World Bank assessment.
 
-## Next phases (not yet started)
+## Phase 2: geopolitical shock module — done
 
-- **Phase 2**: geopolitical shock module (GDELT/ACLED event data → FX/bond/
-  FDI/commodity impact)
-- **Phase 3**: macro forecasting + user-driven stress testing
+Real event study pairing GDELT media-coverage data against real historical
+FX rates for 5 precisely-dated shocks. Full writeup, including a genuinely
+counter-intuitive finding about exchange-rate regimes, in `shock-module/README.md`.
+
+## Phase 3 (not yet started)
+
+Macro forecasting + user-driven stress testing.
