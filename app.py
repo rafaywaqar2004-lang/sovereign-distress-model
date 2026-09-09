@@ -548,13 +548,14 @@ st.markdown(
 
 _n_events = int((phase1_panel["sovereign_default"] == 1).sum() + (phase1_panel["imf_program_entry"] == 1).sum())
 _n_countries = phase1_panel["country_code"].nunique()
-_n_shocks = phase2_results["fx_pct_change"].notna().sum()
+_n_shocks = phase2_results.dropna(subset=["gdelt_avg_tone_post", "fx_pct_change"]).shape[0]
+_n_shocks_total = len(phase2_shocks)
 
 stat_cols = st.columns(4)
 stats = [
     (str(_n_countries), "Countries tracked"),
     (str(_n_events), "Real distress events (2010-2024)"),
-    (str(_n_shocks), "Shocks with real FX + GDELT data"),
+    (f"{_n_shocks} of {_n_shocks_total}", "Shocks with real FX + GDELT data"),
     ("2010–2024", "Panel coverage"),
 ]
 for col, (num, label) in zip(stat_cols, stats):
@@ -1125,26 +1126,32 @@ with tab3:
     st.markdown('<div class="section-title">Geopolitical Shocks</div>', unsafe_allow_html=True)
     st.markdown(
         f'<p style="color:{TEXT_MUTED};">Real GDELT media-coverage data paired against real historical FX rates '
-        f'for 5 precisely-dated shocks. Syria (Jan 2012) was dropped after a real fetch confirmed it predates '
-        f'GDELT\'s actual data coverage window (Feb 2015+) — a genuine scope constraint, not hidden.</p>',
+        f'for {_n_shocks_total} precisely-dated shocks. Syria (Jan 2012) was dropped after a real fetch confirmed '
+        f'it predates GDELT\'s actual data coverage window (Feb 2015+) — a genuine scope constraint, not hidden. '
+        f'GDELT\'s own rate limiting means not every event returns both a real tone and volume signal — shown '
+        f'below exactly as fetched, with gaps left as gaps, never filled in.</p>',
         unsafe_allow_html=True,
     )
 
     usable = phase2_results.dropna(subset=["gdelt_avg_tone_post", "fx_pct_change"])
     corr = usable["gdelt_avg_tone_post"].corr(usable["fx_pct_change"])
+    _worst = usable.loc[usable["gdelt_avg_tone_post"].idxmin()]
+    _mildest = usable.loc[usable["gdelt_avg_tone_post"].idxmax()]
 
     st.markdown(
         f'<div class="honest-box"><span class="label">Interpretation note</span>'
-        f'Correlation (GDELT tone vs. FX % change), n={len(usable)}: <b>{corr:.2f}</b>. This runs counter to naive '
-        f'intuition (worse tone → bigger FX move) because Lebanon has the single worst media tone in the set but '
-        f'almost no FX movement — its official rate was still pegged during that window — while Egypt has the '
-        f'mildest tone but the largest depreciation, since its pound floats more freely. Exchange-rate regime '
-        f'matters as much as the shock itself. n=5 is not a sample to draw a statistical conclusion from — this is '
-        f'a real, correctly-computed correlation, not a claim of a validated predictive relationship.</div>',
+        f'Correlation (GDELT tone vs. FX % change), n={len(usable)}: <b>{corr:.2f}</b>. Real extremes in this set '
+        f'(re-derived each run, not assumed to match an earlier smaller sample): {COUNTRIES.get(_worst["country_code"], _worst["country_code"])} '
+        f'has the worst media tone ({_worst["gdelt_avg_tone_post"]:.2f}) with a {_worst["fx_pct_change"]:+.1f}% FX move, while '
+        f'{COUNTRIES.get(_mildest["country_code"], _mildest["country_code"])} has the mildest tone ({_mildest["gdelt_avg_tone_post"]:.2f}) with a '
+        f'{_mildest["fx_pct_change"]:+.1f}% move. Pegged/managed currencies can show large tone swings with little real FX '
+        f'movement regardless of event severity — exchange-rate regime matters as much as the shock itself. n={len(usable)} is still '
+        f'not a sample to draw a statistical conclusion from — this is a real, correctly-computed correlation, not a claim of a '
+        f'validated predictive relationship.</div>',
         unsafe_allow_html=True,
     )
 
-    st.markdown("#### The 5 shocks")
+    st.markdown(f"#### The {_n_shocks_total} shocks")
     ev_table = phase2_results.copy()
     ev_table["country"] = ev_table["country_code"].map(COUNTRIES)
     ev_table = ev_table[["country", "event_date", "label", "gdelt_avg_tone_post", "fx_pct_change"]]
@@ -1189,7 +1196,7 @@ with tab3:
             st.caption("No FX data for this event.")
 
     st.caption(
-        "Independently validated in R (base cor()) — matches Python's manually-computed correlation exactly (0.59). "
+        "Independently validated in R (base cor()) — matches Python's manually-computed correlation exactly. "
         "Full methodology in shock-module/README.md."
     )
 
@@ -1389,9 +1396,11 @@ with tab5:
     st.markdown(
         "**Phase 1 — Sovereign Distress Model** answers *is this country heading into distress?* with a panel "
         "logistic regression, not an arbitrary weighted score — coefficients are estimated from real data, not "
-        "assigned by analyst judgment. **Phase 2 — Geopolitical Shock Module** answers *did this shock actually "
-        "move markets?* with a real event study, deliberately kept to n=5 rather than padded with synthetic "
-        "events. **Phase 3 — Macro Forecasting + Stress Test** answers *what happens under a shock scenario?* "
+        f"assigned by analyst judgment. **Phase 2 — Geopolitical Shock Module** answers *did this shock actually "
+        f"move markets?* with a real event study over {_n_shocks_total} real, precisely-dated events (not padded "
+        f"with synthetic ones), though GDELT's own rate limiting means only {_n_shocks} of those return both a "
+        f"real tone signal and real FX data usable for the correlation. **Phase 3 — Macro Forecasting + Stress "
+        f"Test** answers *what happens under a shock scenario?* "
         "with a panel AR(1) forecast extended by real, fitted shock-driver coefficients, not assumed multipliers. "
         "Each phase's full data sources, method, and limitations are in its own expandable section below, "
         "followed by that phase's model coefficients, validation results, and (where built) benchmarking against "
@@ -1544,13 +1553,16 @@ with tab5:
 
     with st.expander("Phase 2 — Geopolitical Shock Module: data sources, method, limitations", expanded=False):
         st.markdown(
-            "**Data:** GDELT 2.0 Doc API (media tone/volume) and yfinance (real historical daily FX rates, after "
-            "Frankfurter's ECB-based rates were confirmed to not cover any of the 5 currencies needed).\n\n"
-            "**Method:** event-study design — real coverage/sentiment signal paired against real FX movement "
-            "around each event's actual date.\n\n"
-            "**Limitations:** n=5 is not a sample to draw a statistical conclusion from. GDELT's coverage window "
-            "(Feb 2015+) limits which historical shocks this method can ever cover. Lebanon's FX series reflects "
-            "the official/pegged rate, not the parallel market where the real crisis played out."
+            f"**Data:** GDELT 2.0 Doc API (media tone/volume) and yfinance (real historical daily FX rates, after "
+            f"Frankfurter's ECB-based rates were confirmed to not cover the currencies needed).\n\n"
+            f"**Method:** event-study design — real coverage/sentiment signal paired against real FX movement "
+            f"around each event's actual date.\n\n"
+            f"**Limitations:** n={_n_shocks} usable of {_n_shocks_total} real events fetched is still not a sample "
+            f"to draw a statistical conclusion from. GDELT's coverage window (Feb 2015+) limits which historical "
+            f"shocks this method can ever cover, and its real rate limiting means not every event returns both a "
+            f"tone and volume signal on a given run — disclosed per-event, not silently filled in. Lebanon's and "
+            f"Iran's FX series reflect official/pegged rates, not the parallel/black markets where their real "
+            f"crises actually played out."
         )
 
     with st.expander("Phase 3 — Macro Forecasting + Stress Test: data sources, method, limitations", expanded=False):

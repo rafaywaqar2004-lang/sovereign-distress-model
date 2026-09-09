@@ -3,7 +3,7 @@
     "country_code": "LBN",
     "label": "Lebanon sovereign default",
     "event_date": "2020-03-09",
-    "gdelt_avg_tone_post": -3.2371375000000002,
+    "gdelt_avg_tone_post": null,
     "gdelt_peak_volume_post": null,
     "fx_pct_change": -0.3666222006829261
   },
@@ -28,23 +28,71 @@
     "label": "Egyptian pound devaluation",
     "event_date": "2022-03-21",
     "gdelt_avg_tone_post": -0.30973749999999994,
-    "gdelt_peak_volume_post": null,
+    "gdelt_peak_volume_post": 1.8796,
     "fx_pct_change": 15.61091236033843
   },
   {
     "country_code": "PAK",
     "label": "Pakistan Stand-By Arrangement approved",
     "event_date": "2023-07-12",
-    "gdelt_avg_tone_post": -0.7742875,
+    "gdelt_avg_tone_post": null,
     "gdelt_peak_volume_post": 0.5789,
     "fx_pct_change": 2.553132728315023
   },
   {
-    "country_code": "SYR",
-    "label": "Syria civil war escalation (approximate marker)",
-    "event_date": "2012-01-01",
-    "gdelt_avg_tone_post": null,
+    "country_code": "TUR",
+    "label": "Turkish lira currency crisis",
+    "event_date": "2018-08-10",
+    "gdelt_avg_tone_post": -1.317625,
     "gdelt_peak_volume_post": null,
-    "fx_pct_change": null
+    "fx_pct_change": 19.39777637890169
+  },
+  {
+    "country_code": "QAT",
+    "label": "Qatar diplomatic crisis (Gulf blockade begins)",
+    "event_date": "2017-06-05",
+    "gdelt_avg_tone_post": null,
+    "gdelt_peak_volume_post": 0.0694,
+    "fx_pct_change": 0.5683819161071224
+  },
+  {
+    "country_code": "SAU",
+    "label": "Abqaiq-Khurais drone/missile attack",
+    "event_date": "2019-09-14",
+    "gdelt_avg_tone_post": null,
+    "gdelt_peak_volume_post": 0.2566,
+    "fx_pct_change": -0.0042708051323978
+  },
+  {
+    "country_code": "SDN",
+    "label": "Sudan civil war outbreak",
+    "event_date": "2023-04-15",
+    "gdelt_avg_tone_post": -2.6251,
+    "gdelt_peak_volume_post": 0.0453,
+    "fx_pct_change": -0.9840098400984022
+  },
+  {
+    "country_code": "ETH",
+    "label": "Tigray war outbreak",
+    "event_date": "2020-11-04",
+    "gdelt_avg_tone_post": null,
+    "gdelt_peak_volume_post": 0.0142,
+    "fx_pct_change": 0.5392693043039919
+  },
+  {
+    "country_code": "ISR",
+    "label": "October 7 attack / start of the Israel-Gaza war",
+    "event_date": "2023-10-07",
+    "gdelt_avg_tone_post": -3.8954375,
+    "gdelt_peak_volume_post": null,
+    "fx_pct_change": 4.2196220471028205
+  },
+  {
+    "country_code": "IRN",
+    "label": "Mahsa Amini death / nationwide protests begin",
+    "event_date": "2022-09-16",
+    "gdelt_avg_tone_post": null,
+    "gdelt_peak_volume_post": 0.1595,
+    "fx_pct_change": 0.08626844359828653
   }
 ]
