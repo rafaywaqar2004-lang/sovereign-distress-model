@@ -9,6 +9,7 @@ Runs via GitHub Actions -- same reason as every other fetch in this
 project: this sandbox blocks both domains directly.
 """
 import json
+import time
 import urllib.request
 import urllib.error
 import io
@@ -35,11 +36,20 @@ def fetch_fed_funds_annual():
     -> annual average, via FRED's public CSV endpoint (no API key)."""
     url = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=FEDFUNDS"
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; research-script/1.0)"})
-    try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            raw = resp.read().decode("utf-8")
-    except Exception as e:
-        print(f"Fed funds: FAILED -- {e}")
+    raw = None
+    for attempt in range(4):
+        try:
+            print(f"Fed funds: attempt {attempt+1}/4: {url}", flush=True)
+            with urllib.request.urlopen(req, timeout=45) as resp:
+                raw = resp.read().decode("utf-8")
+                print(f"Fed funds: got {len(raw)} bytes back", flush=True)
+                break
+        except Exception as e:
+            print(f"Fed funds: attempt {attempt+1}/4 failed -- {e}", flush=True)
+            if attempt < 3:
+                time.sleep(5)
+    if raw is None:
+        print("Fed funds: FAILED after 4 attempts")
         return {}
 
     reader = csv.DictReader(io.StringIO(raw))

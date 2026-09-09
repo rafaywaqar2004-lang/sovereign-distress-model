@@ -23,7 +23,7 @@ jobs:
         working-directory: forecast-module
         env:
           PYTHONUNBUFFERED: "1"
-        timeout-minutes: 5
+        timeout-minutes: 8
         run: python -u fetch_shock_drivers.py
 
       - name: Commit fetched data if anything changed
