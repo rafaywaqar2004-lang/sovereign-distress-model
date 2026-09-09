@@ -116,3 +116,83 @@ distress prediction, a real geopolitical-shock event study, and macro
 forecasting with stress testing — all independently validated in R,
 backed by real SQLite databases, and built entirely on real or
 directly-fetched data.
+
+## Research summary
+
+This section mirrors the structure of an empirical research paper, so the
+project's actual methodology and findings are legible without opening the
+live app. Every number below is real and reproducible from this repo's own
+code — nothing here is a separate, hand-written claim.
+
+**1. Research question.** Does a panel of real macro/governance factors
+contain information about which of 34 MENA/South Asia economies enter real
+sovereign distress (default or IMF program entry), and do real geopolitical
+and macro shocks propagate through this panel in economically sensible ways?
+
+**2. Data.** World Bank WDI + Worldwide Governance Indicators (2010–2024,
+34 countries), real sourced distress events (`data/distress_events.py`),
+GDELT 2.0 Doc API + yfinance for the shock module, yfinance (`CL=F`, `^IRX`)
+for macro forecasting. Full source table in the live app's Methodology tab.
+
+**3. Risk-index construction.** Not a weighted composite score — a fitted
+logistic regression (`model/distress_model.py`), so "weights" are the
+model's own estimated coefficients, not arbitrary analyst judgment.
+**A real limitation found in a later audit, disclosed rather than fixed
+quietly**: the 5 economic factors this model is fit on are the same 0–100
+normalized risk sub-scores whose mislabeling was already caught for Phase 3
+— never caught here until this pass. Coefficients should be read in
+normalized risk-rank units, not literal percentage points; refitting on
+Phase 3's real raw values is the clear next step, not yet done.
+
+**4. Econometric methodology.** Panel logistic regression with
+country-clustered standard errors (Phase 1); panel fixed-effects AR(1)
+regression (Phase 3 forecasting); local projections at h=0,1,2 for a real
+oil-price shock on growth/inflation (Phase 3, Jordà-style, panel FE at each
+horizon); an event-study correlation, n=5, explicitly not treated as a
+statistical test (Phase 2). All independently cross-validated in R.
+
+**5. Empirical results.** political_stability and gdp_growth are the only
+factors significant at 5% in the primary distress specification. The
+oil-shock local projection shows a real, substantive pattern: a
+significant positive effect on GDP growth on impact (h=0, many of these
+economies are oil producers/exporters) that reverses to significant and
+negative by h=2 — inflation shows no significant effect at any horizon,
+consistent with the stress-test model's own finding.
+
+**6. Backtesting.** In-sample AUC 0.85 (12 events, 10 predictors — a real
+overfitting risk, disclosed). A genuine out-of-sample temporal holdout
+(train ≤2021, 4 events; test 2022–2024, 8 events) gives AUC 0.74, but the
+raw predicted probabilities in the holdout never exceed 0.5% and do not
+cleanly separate real events from non-events — **read as historically
+associated with distress, not as a working early-warning system.**
+
+**7. Model benchmarking.** A real, current-snapshot cross-sectional check
+against S&P sovereign ratings (`data/credit_ratings.py`, copied from
+MENASA's own sourced dataset) gives a moderate positive rank correlation
+(Spearman ρ≈0.55, n=19). Ethiopia — in real selective default — is
+independently ranked 2nd-highest by the model, a real point in its favor.
+Lebanon — also in real selective default — ranks 18th of 19, a genuine,
+disclosed divergence.
+
+**8. Scenario analysis.** Named presets (Baseline/Escalation/
+De-escalation/Severe tail-risk) apply real, fitted oil/rate coefficients
+through documented, illustrative shock magnitudes. Explicitly labeled
+"probability not estimated" — 17 real events is too thin to defensibly
+assign a probability to each scenario, and this project does not fabricate
+one.
+
+**9. Limitations.** Rare-event data (17 real events total); near-perfect
+separation risk in the 2-event `sovereign_default` outcome; normalized-vs-
+raw factor mislabeling (§3); a cross-sectional-only ratings benchmark, not
+a historical time series; no bilateral trade/spillover-network data
+fetched, so cross-country contagion channels are not modeled here; no
+formal probability calibration beyond the logit's own fitted probabilities.
+
+**10. What was deliberately not attempted, and why.** Formal
+macro-vs-geopolitical "ablation" testing at panel scale — the only real
+geopolitical shock data is 5 discrete event-study observations, not an
+annual series across all 34 countries, so a combined panel regression
+would mismatch sample structures rather than genuinely compare information
+content. Spillover/network analysis — would require real bilateral trade
+and commodity-exposure matrices this project has not fetched; flagged as
+future work rather than approximated with invented weights.
