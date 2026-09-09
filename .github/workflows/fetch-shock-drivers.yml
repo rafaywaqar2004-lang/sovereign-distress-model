@@ -19,11 +19,11 @@ jobs:
       - name: Install yfinance
         run: pip install yfinance
 
-      - name: Fetch oil price and Fed funds rate
+      - name: Fetch oil price and short-term rate proxy
         working-directory: forecast-module
         env:
           PYTHONUNBUFFERED: "1"
-        timeout-minutes: 8
+        timeout-minutes: 5
         run: python -u fetch_shock_drivers.py
 
       - name: Commit fetched data if anything changed
