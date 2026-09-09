@@ -979,7 +979,14 @@ with tab2:
                     if pd.isna(val):
                         st.markdown(f'<div class="card"><b>{label}</b><br><span style="color:{TEXT_MUTED};">No data</span></div>', unsafe_allow_html=True)
                     else:
-                        color = GOOD if (label == "Buffers (strength)") == (val >= 50) else (BAD if val >= 66 or (label == "Buffers (strength)" and val < 34) else WARN)
+                        is_buffer = (label == "Buffers (strength)")
+                        # Risk cards: GOOD low / BAD high. Buffer card is inverted:
+                        # GOOD high / BAD low, since a higher number there means
+                        # more resilience, not more risk.
+                        if is_buffer:
+                            color = GOOD if val >= 50 else (BAD if val < 34 else WARN)
+                        else:
+                            color = GOOD if val < 50 else (BAD if val >= 66 else WARN)
                         st.markdown(
                             f'<div class="card"><b>{label}</b><br>'
                             f'<span style="font-family:\'IBM Plex Mono\',monospace;font-size:1.3rem;color:{color};">{val:.0f}</span>'

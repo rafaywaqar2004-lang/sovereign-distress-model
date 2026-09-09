@@ -117,6 +117,44 @@ forecasting with stress testing — all independently validated in R,
 backed by real SQLite databases, and built entirely on real or
 directly-fetched data.
 
+## Risk architecture layer — done
+
+A descriptive diagnostic layer added after auditing the project against a
+comprehensive institutional risk-architecture framework (external
+vulnerability, fiscal/sovereign, banking-sector, macro, institutional,
+buffers, global financial conditions, chokepoint exposure). It does **not**
+introduce a second predictive score — Phase 1's fitted logit remains the
+only real predictive model here — it explains *where* a country's risk
+comes from, using real, newly-fetched data:
+
+- **Extended World Bank WDI indicators** (`data/fetch_extended_indicators.py`):
+  external debt/GNI, external debt service/exports, fiscal balance/GDP,
+  interest payments/revenue, bank NPLs, private credit/GDP, trade openness,
+  fuel/food trade dependence, remittances, FDI, unemployment — same keyless
+  public API already used for the original 11 factors.
+- **Real global financial conditions** (`forecast-module/fetch_global_conditions.py`,
+  yfinance): VIX, US 10-year Treasury yield, the US Dollar Index, and an
+  EM bond ETF used as an aggregate market-wide risk-premium proxy.
+- **Real, sourced maritime-chokepoint exposure** (`data/chokepoint_exposure.py`):
+  Suez Canal / Bab el-Mandeb / Strait of Hormuz, assigned by real
+  geography and trade dependency, citations copied from the companion
+  overeign-risk-index project's own fact-checked research.
+- **A real ablation test** (`model/ablation_test.py`): economic-only vs.
+  governance-only vs. combined logit on the existing panel — combining
+  both real dimensions reaches AUC 0.843, a genuine +0.079 lift over the
+  better single-dimension model (governance-only, 0.763).
+- **Peer-relative percentiles and real "what changed" attribution**
+  (`model/peer_comparison.py`).
+
+**Deliberately not added, with the real reason** (see the live app's
+Methodology tab for the full list): a bilateral trade/spillover network
+(needs a UN Comtrade subscription key nobody has registered), per-country
+sovereign CDS/EMBI/bond yields (confirmed absent from every free API this
+project has access to), climate/resource vulnerability indices (no
+reliable free fetchable pipeline), and a continuous conflict-intensity
+panel (ACLED requires a separate account registration). None of these are
+approximated with invented data.
+
 ## Research summary
 
 This section mirrors the structure of an empirical research paper, so the
@@ -205,11 +243,19 @@ dominated by a single extreme observation (Lebanon 2023) given only 4
 training events, a real illustration of how thin this panel's event count
 still is.
 
-**10. What was deliberately not attempted, and why.** Formal
-macro-vs-geopolitical "ablation" testing at panel scale — the only real
-geopolitical shock data is 5 discrete event-study observations, not an
-annual series across all 34 countries, so a combined panel regression
-would mismatch sample structures rather than genuinely compare information
-content. Spillover/network analysis — would require real bilateral trade
-and commodity-exposure matrices this project has not fetched; flagged as
-future work rather than approximated with invented weights.
+**10. What was deliberately not attempted, and why.** A literal
+macro-vs-geopolitical "ablation" test at panel scale is still not possible
+— the only real geopolitical shock data is 5 discrete event-study
+observations, not an annual series across all 34 countries, so a combined
+panel regression would mismatch sample structures rather than genuinely
+compare information content. The real, available analogue — economic vs.
+governance factors, both continuous panel dimensions — was since built and
+run (see "Risk architecture layer," above): combining them reaches AUC
+0.843, a genuine +0.079 lift over the better single-dimension model.
+Spillover/network analysis — would require real bilateral trade matrices
+(UN Comtrade has a real API, but gated on a free subscription key not yet
+registered for this project); climate/resource vulnerability indices and a
+continuous ACLED conflict panel were investigated for the same layer and
+declined for the same reason: no reliable free pipeline or credentials
+available, not approximated with invented data. All three remain flagged
+as future work, not silently dropped.

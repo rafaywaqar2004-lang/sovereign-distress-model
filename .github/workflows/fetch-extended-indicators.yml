@@ -31,5 +31,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/extended_indicators.csv data/extended_indicators_long.csv
-          git diff --staged --quiet && echo "No data changes" || git commit -m "Fetch extended World Bank indicators (external debt, fiscal, banking, trade)"
-          git push
+          git diff --staged --quiet && echo "No data changes" && exit 0
+          git commit -m "Fetch extended World Bank indicators (external debt, fiscal, banking, trade)"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
