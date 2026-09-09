@@ -29,11 +29,18 @@ GDELT_DOC_API = "https://api.gdeltproject.org/api/v2/doc/doc"
 WINDOW_DAYS = 30  # days before/after the event date to pull a timeline for
 
 
-def fetch_timeline(fips_code, center_date, mode="timelinetone", window_days=WINDOW_DAYS, retries=3):
+def fetch_timeline(fips_code, center_date, mode="timelinetone", window_days=WINDOW_DAYS, retries=4):
     """Real GDELT Doc API call. mode='timelinetone' returns average daily
     sentiment of news coverage; mode='timelinevol' returns coverage volume
     as a % of all monitored news that day. Both are real, documented Doc API
-    modes -- see https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/."""
+    modes -- see https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/.
+
+    GDELT rate-limits aggressively (HTTP 429) -- confirmed by the first real
+    run of this script, which also showed successful responses taking
+    11-13 seconds even when they succeed. Backoff here is sized off that
+    real observed behavior, not guessed: 10s between retries (not 2s), and
+    a 25s per-request timeout (not 15s, which was cutting it close against
+    the observed 11-13s successful-response time)."""
     start = (center_date - timedelta(days=window_days)).strftime("%Y%m%d000000")
     end = (center_date + timedelta(days=window_days)).strftime("%Y%m%d000000")
 
@@ -51,13 +58,14 @@ def fetch_timeline(fips_code, center_date, mode="timelinetone", window_days=WIND
     for attempt in range(retries):
         print(f"  [{mode}] attempt {attempt+1}/{retries}: {url}", flush=True)
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with urllib.request.urlopen(req, timeout=25) as resp:
                 raw = resp.read().decode("utf-8")
                 print(f"  [{mode}] got {len(raw)} bytes back", flush=True)
                 return json.loads(raw)
         except Exception as e:
             print(f"  [{mode}] attempt {attempt+1}/{retries} failed for {fips_code}: {e}", flush=True)
-            time.sleep(2)
+            if attempt < retries - 1:
+                time.sleep(10)
     return None
 
 
@@ -76,7 +84,9 @@ def main():
         print(f"\nFetching {code} ({fips}) around {event['event_date']} -- {event['label']}")
 
         tone_data = fetch_timeline(fips, center, mode="timelinetone")
+        time.sleep(8)  # space out calls proactively -- GDELT rate-limits back-to-back requests (confirmed 429s)
         vol_data = fetch_timeline(fips, center, mode="timelinevol")
+        time.sleep(8)  # same spacing before the next country's first call
 
         n_tone_points = len(tone_data["timeline"][0]["data"]) if tone_data and tone_data.get("timeline") else 0
         n_vol_points = len(vol_data["timeline"][0]["data"]) if vol_data and vol_data.get("timeline") else 0
@@ -84,10 +94,16 @@ def main():
         print(f"  tone timeline points: {n_tone_points}, volume timeline points: {n_vol_points}")
 
         if code in CONFIDENCE_FLAGGED:
+            # Judge on EITHER mode returning real data, not tone alone -- the
+            # first real run showed a false alarm here: LKA's tone call
+            # failed on rate-limiting (429) while its volume call succeeded
+            # with 61 real points, which the old tone-only check misread as
+            # "this FIPS code is wrong" when the code was actually fine.
+            got_real_data = n_tone_points > 0 or n_vol_points > 0
             note = (
                 f"{code} ({fips}) is a CONFIDENCE_FLAGGED FIPS mapping -- "
                 f"got {n_tone_points} tone / {n_vol_points} volume points back. "
-                f"{'Non-zero result suggests the code is at least reaching real data.' if n_tone_points else 'ZERO points back -- this FIPS code is likely WRONG and needs fixing, not trusting.'}"
+                f"{'At least one mode returned real data -- mapping looks correct.' if got_real_data else 'ZERO points back on BOTH modes -- this FIPS code is likely WRONG and needs fixing, not trusting.'}"
             )
             print(f"  *** {note}")
             validation_notes.append(note)

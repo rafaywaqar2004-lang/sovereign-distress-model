@@ -21,7 +21,7 @@ jobs:
         working-directory: shock-module
         env:
           PYTHONUNBUFFERED: "1"
-        timeout-minutes: 5
+        timeout-minutes: 25
         run: python -u fetch_shocks.py
 
       - name: Commit fetched timelines if anything changed
