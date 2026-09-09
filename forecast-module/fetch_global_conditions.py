@@ -4,7 +4,12 @@ Conditions" component. Same proven yfinance pattern as fetch_shock_drivers.py
 (oil, ^IRX), extended to four more real, keyless, free instruments:
 
 - ^VIX  : CBOE Volatility Index, the standard global risk-appetite gauge.
-- ^TNX  : US 10-year Treasury yield (x10 convention, divided back out below).
+- ^TNX  : US 10-year Treasury yield, quoted directly as a percentage by
+  Yahoo Finance (a close of 4.21 means 4.21%) -- verified against real
+  known 2024-2026 10Y levels (~4.2-4.4%) before trusting this, since an
+  older/outdated assumption about a "x10" quoting convention does NOT
+  apply to this series as currently served and was caught and corrected
+  here rather than silently shipped.
 - DX-Y.NYB : ICE US Dollar Index (DXY) -- broad dollar strength.
 - EMB   : iShares J.P. Morgan USD Emerging Markets Bond ETF. Used as a real,
   aggregate EM risk-premium PROXY (EMB's own dividend/price behavior implies
@@ -48,12 +53,7 @@ def fetch_annual(ticker):
 if __name__ == "__main__":
     out = {}
     for key, ticker in TICKERS.items():
-        series = fetch_annual(ticker)
-        if key == "us_10y_yield_pct":
-            # ^TNX quotes yield * 10 (e.g. 42.5 means 4.25%) -- divide back
-            # to a real percentage, a well-documented Yahoo Finance quirk.
-            series = {y: v / 10 for y, v in series.items()}
-        out[key] = series
+        out[key] = fetch_annual(ticker)
 
     with open("global_conditions.json", "w") as f:
         json.dump(out, f, indent=2)
