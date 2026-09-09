@@ -37,7 +37,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/trade_network.csv data/trade_network_debug.csv
+          git add data/trade_network.csv
           git diff --staged --quiet && echo "No data changes" && exit 0
           git commit -m "Fetch real bilateral trade network (UN Comtrade)"
           git fetch origin main
