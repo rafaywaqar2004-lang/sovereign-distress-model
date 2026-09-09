@@ -1,0 +1,35 @@
+name: Fetch shock-driver data — oil price, Fed funds rate (Phase 3)
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install yfinance
+        run: pip install yfinance
+
+      - name: Fetch oil price and Fed funds rate
+        working-directory: forecast-module
+        env:
+          PYTHONUNBUFFERED: "1"
+        timeout-minutes: 5
+        run: python -u fetch_shock_drivers.py
+
+      - name: Commit fetched data if anything changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add forecast-module/shock_drivers.json
+          git diff --staged --quiet && echo "No data changes" || git commit -m "Fetch oil price and Fed funds rate shock drivers"
+          git push
