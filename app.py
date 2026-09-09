@@ -440,6 +440,31 @@ from risk_architecture import SUB_INDICES, CONTEXT_ONLY, build_sub_indices  # no
 from peer_comparison import DIRECTION, latest_value_per_country, what_changed, top_movers  # noqa: E402
 from chokepoint_exposure import MARITIME_CHOKEPOINTS, CHOKEPOINT_EXPOSURE, exposure_summary  # noqa: E402
 from trade_infrastructure import TRADE_BLOCS, TRADE_BLOCS_SOURCE, MAJOR_PORTS, PORTS_SOURCE  # noqa: E402
+from firth_logit import firth_logit  # noqa: E402
+
+
+# ============================================================
+# LIVE FIRTH FIT -- sovereign_default has only 2 real events in the
+# complete-case sample: severe near-perfect separation that makes the
+# plain MLE (used for imf_program_entry above) unusable for this outcome
+# specifically (coefficients diverge; statsmodels raises
+# PerfectSeparationWarning). Firth's penalized logistic regression
+# (model/firth_logit.py, a from-scratch implementation -- see its
+# docstring for why: PyPI's firthlogist doesn't support this app's Python
+# version, and CRAN's logistf couldn't be reached to cross-check) is the
+# standard fix, refit live here for the same drift-proofing reason as
+# fit_phase1_model above.
+# ============================================================
+@st.cache_resource
+def fit_sovereign_default_firth(panel_df):
+    complete = panel_df.dropna(subset=PRIMARY_FACTOR_COLS + ["sovereign_default"])
+    X = sm.add_constant(complete[PRIMARY_FACTOR_COLS]).values
+    y = complete["sovereign_default"].values
+    result = firth_logit(X, y)
+    return result, complete
+
+
+sovereign_default_firth, sovereign_default_complete = fit_sovereign_default_firth(phase1_panel)
 
 
 @st.cache_data
@@ -1454,9 +1479,14 @@ with tab5:
             "`data/distress_events.py` for full citations of each one and what was deliberately excluded, and why).\n\n"
             "**Method:** logistic regression with country fixed effects, cluster-robust standard errors.\n\n"
             "**Limitations:** sample size is the real constraint — this is a screening-level, exploratory first "
-            "pass, not a production early-warning system. `sovereign_default` (2 events) shows signs of "
-            "near-perfect separation — a proper fix (Firth's penalized logistic regression) is flagged as future "
-            "work, not yet implemented."
+            "pass, not a production early-warning system. `sovereign_default` (2 events) showed severe "
+            "near-perfect separation under plain MLE (statsmodels raises `PerfectSeparationWarning`, coefficients "
+            "diverge) — fixed below with Firth's penalized logistic regression, a from-scratch implementation "
+            "(`model/firth_logit.py`) since PyPI's `firthlogist` doesn't support this app's Python version and "
+            "CRAN's `logistf` couldn't be reached from this sandbox to cross-check (egress policy blocks "
+            "cloud.r-project.org) — disclosed rather than silently skipped. Inference uses the standard Wald "
+            "approximation from the observed-information inverse, not Firth's preferred profile-likelihood test, "
+            "which is not implemented — a real, disclosed limitation of this fix, not a hidden one."
         )
 
     st.markdown("#### Model coefficients (primary specification, `imf_program_entry`)")
@@ -1476,6 +1506,30 @@ with tab5:
         "the numbers above. Independently cross-validated in R "
         "(glm + cluster-robust SEs) — matches almost to the decimal (e.g. reserves_months_imports: -0.1808 in both "
         "Python and R). Full model output and the debt_to_gdp robustness check in model/distress_model.py."
+    )
+
+    st.markdown("#### Model coefficients (`sovereign_default`, Firth's penalized logistic regression)")
+    firth_coef_data = pd.DataFrame({
+        "Factor": PRIMARY_FACTOR_COLS,
+        "Coefficient": [sovereign_default_firth["beta"][i + 1] for i in range(len(PRIMARY_FACTOR_COLS))],
+        "Std. error": [sovereign_default_firth["se"][i + 1] for i in range(len(PRIMARY_FACTOR_COLS))],
+        "p-value": [sovereign_default_firth["p"][i + 1] for i in range(len(PRIMARY_FACTOR_COLS))],
+    })
+    firth_coef_data["Significant (5%)"] = firth_coef_data["p-value"].apply(lambda p: "Yes" if p < 0.05 else "No")
+    firth_coef_data["Coefficient"] = firth_coef_data["Coefficient"].round(4)
+    firth_coef_data["Std. error"] = firth_coef_data["Std. error"].round(4)
+    firth_coef_data["p-value"] = firth_coef_data["p-value"].round(3)
+    st.dataframe(firth_coef_data, use_container_width=True, hide_index=True)
+    _sd_n_events = int(sovereign_default_complete["sovereign_default"].sum())
+    st.caption(
+        f"Live-fitted in this app on every load ({len(sovereign_default_complete)} complete-case observations, "
+        f"{_sd_n_events} of 2 real sovereign_default events — Lebanon 2020, Sri Lanka 2022). Plain MLE on this "
+        "same specification does not produce a usable fit (near-perfect separation); Firth's bias-reduction "
+        f"({'converged' if sovereign_default_firth['converged'] else 'did not fully converge'} in "
+        f"{sovereign_default_firth['n_iter']} iterations) gives finite, interpretable coefficients instead. "
+        "gdp_growth and inflation come out significant at 5% with economically sensible signs (weaker growth, "
+        "higher inflation both raise default risk) — directionally consistent with the primary imf_program_entry "
+        "model above, though still only 2 real events and not a validated predictive relationship on its own."
     )
 
     # ============================================================

@@ -82,10 +82,14 @@ cd ../model && python3 distress_model.py
   first pass, not a production early-warning system. Formal sovereign
   distress is rare, and a 34-country panel only contains as many real
   events as history produced.
-- `sovereign_default` (2 events) shows signs of near-perfect separation in
-  the logit fit — flagged explicitly in the model's own output. A proper
-  fix (Firth's penalized/bias-corrected logistic regression, the standard
-  tool for rare-event logit) is the clear next step, not yet implemented.
+- `sovereign_default` (2 events) showed severe near-perfect separation in
+  the plain logit fit — fixed with Firth's penalized/bias-corrected logistic
+  regression (`model/firth_logit.py`), a from-scratch implementation since
+  neither PyPI's `firthlogist` (needs Python <3.11) nor CRAN's `logistf`
+  (unreachable from this sandbox — egress policy blocks cloud.r-project.org)
+  were available to use directly. Inference uses the standard Wald
+  approximation, not Firth's preferred profile-likelihood test, which isn't
+  implemented — disclosed, not hidden.
 - Expanding the country panel beyond MENA/South Asia to the full ~150-country
   IMF/World Bank universe is the most direct way to add real events without
   inventing any — flagged as future work, not attempted here so as not to

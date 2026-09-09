@@ -30,6 +30,8 @@ correction for exactly this kind of panel data.
 import pandas as pd
 import statsmodels.api as sm
 
+from firth_logit import firth_logit
+
 PRIMARY_FACTOR_COLS = [
     "current_account_pct_gdp", "reserves_months_imports",
     "gdp_growth", "inflation", "currency_depreciation_pct",
@@ -79,12 +81,38 @@ def fit_and_report(outcome_col, factor_cols, label, min_events_for_caveat=10):
         return None
 
 
+def fit_and_report_firth(outcome_col, factor_cols, label):
+    """Firth's penalized logistic regression -- the fix for the
+    near-perfect separation `fit_and_report` above can only flag, not
+    solve, when events are this rare. See firth_logit.py's docstring for
+    why this is a from-scratch implementation (PyPI's firthlogist doesn't
+    support this project's Python version; CRAN's logistf was unreachable
+    from this sandbox to independently cross-check)."""
+    complete = panel.dropna(subset=factor_cols + [outcome_col])
+    X = sm.add_constant(complete[factor_cols])
+    y = complete[outcome_col]
+
+    print(f"\n{'-'*70}")
+    print(f"FIRTH'S PENALIZED LOGISTIC REGRESSION: {outcome_col}  [{label}]")
+    print(f"{'-'*70}")
+    result = firth_logit(X.values, y.values)
+    print(f"Converged: {result['converged']} (in {result['n_iter']} iterations)")
+    print(f"Penalized log-likelihood: {result['loglik_penalized']:.4f}\n")
+    summary = pd.DataFrame({
+        "coef": result["beta"], "std err": result["se"],
+        "z": result["z"], "P>|z|": result["p"],
+    }, index=X.columns)
+    print(summary.round(4).to_string())
+    return result
+
+
 if __name__ == "__main__":
     print("\n" + "#" * 70)
     print("# PRIMARY MODEL -- 10 factors, excludes debt_to_gdp (severe missingness)")
     print("#" * 70)
     fit_and_report("imf_program_entry", PRIMARY_FACTOR_COLS, "primary, 10-factor")
     fit_and_report("sovereign_default", PRIMARY_FACTOR_COLS, "primary, 10-factor")
+    fit_and_report_firth("sovereign_default", PRIMARY_FACTOR_COLS, "primary, 10-factor -- Firth's fix for the separation above")
 
     print("\n" + "#" * 70)
     print("# ROBUSTNESS CHECK -- adds debt_to_gdp back in, on its smaller available sample")
