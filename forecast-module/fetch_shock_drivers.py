@@ -1,6 +1,6 @@
 """
-Fetches real annual oil price and a real US short-term rate proxy
-(2010-2024) to use as real predictors in the stress-test regression,
+Fetches real annual oil price and a real US short-term rate proxy,
+2010-present, to use as real predictors in the stress-test regression,
 rather than assumed sensitivities.
 
 FRED's fredgraph.csv "quick export" endpoint was tried first for the
@@ -15,15 +15,28 @@ proxy for the Fed funds rate widely used in finance for exactly this
 kind of short-term US rate shock -- and yfinance is already proven
 reliable twice over in this project (Phase 2's FX fetch, this module's
 own oil fetch).
+
+Real, honest asymmetry worth stating up front: this fetches through
+today, since yfinance market data is genuinely real-time. The model
+this feeds is NOT trainable on those most recent years, though -- it
+also needs World Bank WDI inflation/growth for the same year, and WDI's
+real publication lag means annual indicators past 2024 don't exist yet
+(confirmed directly against the source pipeline, not assumed). So the
+chart of real oil/rate history below can be current through today; the
+fitted regression itself still trains only through the years WDI
+actually covers.
 """
+import datetime
 import json
 
 import yfinance as yf
 
+TODAY = datetime.date.today().isoformat()
+
 
 def fetch_oil_annual():
-    """Real WTI crude annual average close price, 2010-2024."""
-    hist = yf.Ticker("CL=F").history(start="2010-01-01", end="2025-01-01")
+    """Real WTI crude annual average close price, 2010-present."""
+    hist = yf.Ticker("CL=F").history(start="2010-01-01", end=TODAY)
     if hist is None or hist.empty:
         print("Oil: EMPTY result from yfinance")
         return {}
@@ -38,7 +51,7 @@ def fetch_short_rate_annual():
     """Real 13-week Treasury bill rate ("^IRX"), annual average -- a
     real, standard proxy for the Fed funds rate, not the FEDFUNDS series
     itself (documented explicitly, not silently substituted)."""
-    hist = yf.Ticker("^IRX").history(start="2010-01-01", end="2025-01-01")
+    hist = yf.Ticker("^IRX").history(start="2010-01-01", end=TODAY)
     if hist is None or hist.empty:
         print("Short rate: EMPTY result from yfinance")
         return {}
