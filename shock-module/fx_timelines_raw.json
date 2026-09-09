@@ -1,0 +1,37 @@
+[
+  {
+    "country_code": "LBN",
+    "currency_code": "LBP",
+    "event_date": "2020-03-09",
+    "label": "Lebanon sovereign default",
+    "fx_data": null
+  },
+  {
+    "country_code": "LKA",
+    "currency_code": "LKR",
+    "event_date": "2022-04-12",
+    "label": "Sri Lanka pre-emptive default",
+    "fx_data": null
+  },
+  {
+    "country_code": "AFG",
+    "currency_code": "AFN",
+    "event_date": "2021-08-15",
+    "label": "Fall of Kabul / Taliban takeover",
+    "fx_data": null
+  },
+  {
+    "country_code": "EGY",
+    "currency_code": "EGP",
+    "event_date": "2022-03-21",
+    "label": "Egyptian pound devaluation",
+    "fx_data": null
+  },
+  {
+    "country_code": "PAK",
+    "currency_code": "PKR",
+    "event_date": "2023-07-12",
+    "label": "Pakistan Stand-By Arrangement approved",
+    "fx_data": null
+  }
+]
