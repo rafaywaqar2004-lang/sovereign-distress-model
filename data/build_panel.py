@@ -55,6 +55,24 @@ merged_factors = driver_gov_and_ids.merge(raw_econ, on=["country_code", "year"],
 # Restore driver_history.csv's original column order (cosmetic, keeps panel.csv diffing cleanly comparable to the prior version)
 merged_factors = merged_factors[list(driver.columns)]
 
+# ---------- Extended risk-architecture indicators (external debt, fiscal, ----------
+# ---------- banking, trade -- fetched via data/fetch_extended_indicators.py) -------
+# Optional: build_panel.py must keep working before that fetch has ever run
+# (e.g. a fresh clone), so this merges in only if the file exists, and never
+# fabricates a row or value when it doesn't.
+import os
+extended_path = "extended_indicators.csv"
+if os.path.exists(extended_path):
+    extended = pd.read_csv(extended_path)
+    before_cols = set(merged_factors.columns)
+    merged_factors = merged_factors.merge(extended, on=["country_code", "year"], how="left")
+    new_cols = [c for c in merged_factors.columns if c not in before_cols]
+    print(f"Merged extended indicators: {len(new_cols)} new columns ({', '.join(new_cols)})")
+else:
+    print(f"Note: {extended_path} not found -- run data/fetch_extended_indicators.py "
+          f"(via GitHub Actions) to add external/fiscal/banking/trade indicators. "
+          f"Continuing with the existing 11-factor panel only.")
+
 country_years = list(zip(merged_factors["country_code"], merged_factors["year"]))
 distress_rows = build_distress_panel(country_years)
 distress = pd.DataFrame(distress_rows)
