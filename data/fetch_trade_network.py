@@ -58,6 +58,11 @@ COMTRADE_CODE_TO_COUNTRY = {v: k for k, v in COMTRADE_REPORTER_CODES.items()}
 
 CURRENT_YEAR = datetime.now(timezone.utc).year
 API_KEY = os.environ.get("COMTRADE_API_KEY")
+# Optional: restrict to a subset for a fast diagnostic re-run without
+# re-fetching all 34 countries again (comma-separated country codes).
+_debug_subset = os.environ.get("FETCH_TRADE_NETWORK_COUNTRIES")
+if _debug_subset:
+    COUNTRIES = [c.strip() for c in _debug_subset.split(",") if c.strip()]
 
 
 def fetch_reporter_flow(country_code, flow_code, retries=2):
@@ -96,6 +101,8 @@ def fetch_reporter_flow(country_code, flow_code, retries=2):
             continue
 
         rows = payload.get("data", []) if isinstance(payload, dict) else []
+        print(f"  {country_code} {flow_code} {year}: raw response had {len(rows)} rows before filtering "
+              f"(payload keys: {list(payload.keys()) if isinstance(payload, dict) else type(payload)})")
         partner_rows = [
             {"partner_comtrade_code": r["partnerCode"], "value_usd": r["primaryValue"]}
             for r in rows if r.get("partnerCode", 0) != 0 and r.get("primaryValue")
@@ -134,9 +141,10 @@ def main():
         return
 
     df = pd.DataFrame(rows)
-    df.to_csv("trade_network.csv", index=False)
+    out_path = "trade_network_debug.csv" if _debug_subset else "trade_network.csv"
+    df.to_csv(out_path, index=False)
     n_within_set = df["partner_code"].notna().sum()
-    print(f"\nSaved trade_network.csv: {len(df)} real reporter-partner rows "
+    print(f"\nSaved {out_path}: {len(df)} real reporter-partner rows "
           f"({n_within_set} between two of this project's 34 tracked countries, "
           f"{len(df) - n_within_set} to real partners outside this set -- both are real, kept, not dropped).")
 
