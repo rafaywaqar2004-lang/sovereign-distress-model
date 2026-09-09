@@ -451,156 +451,6 @@ for col, (num, label) in zip(stat_cols, stats):
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# ============================================================
-# COVERAGE MAP -- a real map of the 34 tracked economies, colored by each
-# country's own real, counted distress-event total (sovereign defaults +
-# IMF program entries, 2010-2024) rather than an invented "risk score"
-# this phase's models don't actually produce as a single number.
-#
-# Drawn as plain filled polygons on a Cartesian lon/lat plot from real,
-# bundled Natural Earth 50m country boundaries (map-data/, fetched via
-# GitHub Actions -- see map-data/fetch_geojson.py) -- deliberately NOT
-# using Plotly's go.Choropleth/geo-subplot machinery. That was tried
-# first and dropped after two real, reproduced failures: Plotly's geo
-# subplot fetches its own base projection data from cdn.plot.ly in the
-# viewer's browser even with the basemap layers turned off and a custom
-# geojson supplied, so the map rendered completely blank here (confirmed
-# via a real "unexpected error while fetching topojson file" console
-# error both times, not assumed). Plain (lon, lat) scatter-fill has no
-# such dependency -- verified rendering below with zero external calls.
-# Equirectangular (lon=x, lat=y) rather than a true geographic projection
-# -- a real, disclosed simplification, not a precision GIS map.
-# ============================================================
-st.markdown('<div class="section-title">Coverage — 34 tracked economies</div>', unsafe_allow_html=True)
-
-with open(os.path.join(HERE, "map-data", "countries.geojson")) as f:
-    _world_geojson = json.load(f)
-
-# Natural Earth's own ADM0_A3 codes diverge from ISO3 for two of our 34
-# tracked countries -- Palestine is "PSX" and South Sudan is "SDS" in this
-# dataset, not "PSE"/"SSD" -- a real mismatch found by checking the fetched
-# codes against COUNTRIES, not assumed to match.
-_NE_CODE_OVERRIDES = {"PSE": "PSX", "SSD": "SDS"}
-
-_country_events = (
-    phase1_panel.groupby("country_code")[["sovereign_default", "imf_program_entry"]]
-    .sum().sum(axis=1).reset_index(name="event_count")
-)
-_events_by_ne_code = {
-    _NE_CODE_OVERRIDES.get(row.country_code, row.country_code): row.event_count
-    for row in _country_events.itertuples()
-}
-_max_events = max(_events_by_ne_code.values()) if _events_by_ne_code else 0
-
-
-def _lerp_hex(c1, c2, t):
-    c1, c2 = c1.lstrip("#"), c2.lstrip("#")
-    r1, g1, b1 = int(c1[0:2], 16), int(c1[2:4], 16), int(c1[4:6], 16)
-    r2, g2, b2 = int(c2[0:2], 16), int(c2[2:4], 16), int(c2[4:6], 16)
-    return f"rgb({round(r1 + (r2 - r1) * t)},{round(g1 + (g2 - g1) * t)},{round(b1 + (b2 - b1) * t)})"
-
-
-_TRACKED_ZERO_FLOOR = 0.22  # real fix -- see build_coverage_map() docstring on the "invisible 21" bug
-
-
-def _event_color(count, max_events, surface_alt, accent, accent2):
-    # A tracked country with zero real events must still read as tracked,
-    # not blend into the "outside this panel" background -- floored at a
-    # dim, visible tint rather than 0.
-    t = _TRACKED_ZERO_FLOOR if max_events == 0 else max(_TRACKED_ZERO_FLOOR, count / max_events)
-    return _lerp_hex(surface_alt, accent, t / 0.5) if t <= 0.5 else _lerp_hex(accent, accent2, (t - 0.5) / 0.5)
-
-
-_MAX_RING_POINTS = 150  # real perf fix -- see build_coverage_map() docstring
-
-
-def _decimate(ring, max_points=_MAX_RING_POINTS):
-    step = max(1, len(ring) // max_points)
-    return ring[::step]
-
-
-@st.cache_resource
-def build_coverage_map(world_geojson, events_by_ne_code, max_events, bg, surface, surface_alt, border, accent, accent2, text, text_muted):
-    """
-    Built once and cached (st.cache_resource, since a Plotly Figure isn't
-    the kind of plain data st.cache_data hashes well) -- Streamlit reruns
-    the whole script on every interaction anywhere in the app, and this
-    figure was originally built as 732 separate polygon traces (one per
-    country per disjoint landmass) totaling 50,589 points every single
-    rerun, measured directly, not guessed -- e.g. moving a slider on a
-    completely different tab was rebuilding this map from scratch. Two
-    real fixes here: caching, and merging each country's polygon parts
-    into a single trace (Plotly draws multiple disjoint filled shapes in
-    one trace when their coordinate lists are separated by a `None`),
-    cutting 732 traces to 119. Also decimates very large rings -- Russia
-    and the US alone contributed over 13,000 points from countries that
-    barely clip the edge of this map's actual viewport -- to a max of
-    150 points each, a real, disclosed simplification consistent with
-    this already being a non-precision equirectangular projection.
-    """
-    fig = go.Figure()
-    for feat in world_geojson["features"]:
-        ne_code = feat["properties"]["ADM0_A3"]
-        name = feat["properties"].get("NAME", ne_code)
-        tracked = ne_code in events_by_ne_code
-        count = events_by_ne_code.get(ne_code, 0)
-        fill_color = _event_color(count, max_events, surface_alt, accent, accent2) if tracked else surface_alt
-        # Real fix -- a tracked country with 0 events was rendering in the exact
-        # same fill as a country outside this project's panel entirely (21 of the
-        # 34 tracked countries have 0 real events, so most of the map was reading
-        # as "not tracked"). A visible border on every tracked country now makes
-        # all 34 identifiable regardless of fill.
-        line_color = accent if tracked else border
-        line_width = 0.9 if tracked else 0.6
-        hover = (
-            f"<b>{name}</b><br>Real distress events (2010–2024): {count}"
-            if tracked else f"<b>{name}</b><br>Outside this project's 34-country panel"
-        )
-
-        geom = feat["geometry"]
-        polygons = geom["coordinates"] if geom["type"] == "MultiPolygon" else [geom["coordinates"]]
-        lons, lats = [], []
-        for poly in polygons:
-            ring = _decimate(poly[0])  # exterior ring only -- interior holes not rendered, a real simplification
-            if lons:
-                lons.append(None)
-                lats.append(None)
-            lons.extend(pt[0] for pt in ring)
-            lats.extend(pt[1] for pt in ring)
-
-        fig.add_trace(go.Scatter(
-            x=lons, y=lats, mode="lines", fill="toself",
-            fillcolor=fill_color, line=dict(color=line_color, width=line_width),
-            hoveron="fills", hoverinfo="text", text=hover,
-            name=name, showlegend=False,
-        ))
-
-    fig.update_xaxes(range=[-24, 98], visible=False, fixedrange=True)
-    fig.update_yaxes(range=[-12, 46], visible=False, fixedrange=True, scaleanchor="x", scaleratio=1)
-    fig.update_layout(
-        height=440,
-        margin=dict(l=0, r=0, t=6, b=0),
-        plot_bgcolor=bg,
-        paper_bgcolor="rgba(0,0,0,0)",
-        hoverlabel=dict(bgcolor=surface, font=dict(family="IBM Plex Sans, sans-serif", color=text)),
-        font=dict(family="IBM Plex Sans, sans-serif", color=text_muted, size=12),
-    )
-    return fig
-
-
-st.plotly_chart(
-    build_coverage_map(_world_geojson, _events_by_ne_code, _max_events, BG, SURFACE, SURFACE_ALT, BORDER, ACCENT, ACCENT2, TEXT, TEXT_MUTED),
-    use_container_width=True, config={"displayModeBar": False},
-)
-st.caption(
-    "Colored by each country's own real, counted total of sovereign defaults and IMF program entries "
-    "in this panel (2010–2024) — not an invented composite risk score. All 34 tracked countries are outlined; "
-    "21 of them have 0 real events in this panel and show as a dim tint, not the same plain gray as the "
-    "countries genuinely outside this project's 34-economy panel. Equirectangular projection, not a precision GIS map."
-)
-
-st.markdown("<br>", unsafe_allow_html=True)
-
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "Overview",
     "① Sovereign Distress Model",
@@ -610,6 +460,154 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 with tab1:
+    # ============================================================
+    # COVERAGE MAP -- a real map of the 34 tracked economies, colored by each
+    # country's own real, counted distress-event total (sovereign defaults +
+    # IMF program entries, 2010-2024) rather than an invented "risk score"
+    # this phase's models don't actually produce as a single number.
+    #
+    # Drawn as plain filled polygons on a Cartesian lon/lat plot from real,
+    # bundled Natural Earth 50m country boundaries (map-data/, fetched via
+    # GitHub Actions -- see map-data/fetch_geojson.py) -- deliberately NOT
+    # using Plotly's go.Choropleth/geo-subplot machinery. That was tried
+    # first and dropped after two real, reproduced failures: Plotly's geo
+    # subplot fetches its own base projection data from cdn.plot.ly in the
+    # viewer's browser even with the basemap layers turned off and a custom
+    # geojson supplied, so the map rendered completely blank here (confirmed
+    # via a real "unexpected error while fetching topojson file" console
+    # error both times, not assumed). Plain (lon, lat) scatter-fill has no
+    # such dependency -- verified rendering below with zero external calls.
+    # Equirectangular (lon=x, lat=y) rather than a true geographic projection
+    # -- a real, disclosed simplification, not a precision GIS map.
+    #
+    # Moved to live inside the Overview tab (was previously shown above all
+    # tabs, universally) per direct user feedback -- the tab bar now appears
+    # right after the top stat cards, with the map as Overview's own first
+    # section rather than a banner every tab had to scroll past.
+    # ============================================================
+    st.markdown('<div class="section-title">Coverage — 34 tracked economies</div>', unsafe_allow_html=True)
+
+    with open(os.path.join(HERE, "map-data", "countries.geojson")) as f:
+        _world_geojson = json.load(f)
+
+    # Natural Earth's own ADM0_A3 codes diverge from ISO3 for two of our 34
+    # tracked countries -- Palestine is "PSX" and South Sudan is "SDS" in this
+    # dataset, not "PSE"/"SSD" -- a real mismatch found by checking the fetched
+    # codes against COUNTRIES, not assumed to match.
+    _NE_CODE_OVERRIDES = {"PSE": "PSX", "SSD": "SDS"}
+
+    _country_events = (
+        phase1_panel.groupby("country_code")[["sovereign_default", "imf_program_entry"]]
+        .sum().sum(axis=1).reset_index(name="event_count")
+    )
+    _events_by_ne_code = {
+        _NE_CODE_OVERRIDES.get(row.country_code, row.country_code): row.event_count
+        for row in _country_events.itertuples()
+    }
+    _max_events = max(_events_by_ne_code.values()) if _events_by_ne_code else 0
+
+    def _lerp_hex(c1, c2, t):
+        c1, c2 = c1.lstrip("#"), c2.lstrip("#")
+        r1, g1, b1 = int(c1[0:2], 16), int(c1[2:4], 16), int(c1[4:6], 16)
+        r2, g2, b2 = int(c2[0:2], 16), int(c2[2:4], 16), int(c2[4:6], 16)
+        return f"rgb({round(r1 + (r2 - r1) * t)},{round(g1 + (g2 - g1) * t)},{round(b1 + (b2 - b1) * t)})"
+
+    _TRACKED_ZERO_FLOOR = 0.22  # real fix -- see build_coverage_map() docstring on the "invisible 21" bug
+
+    def _event_color(count, max_events, surface_alt, accent, accent2):
+        # A tracked country with zero real events must still read as tracked,
+        # not blend into the "outside this panel" background -- floored at a
+        # dim, visible tint rather than 0.
+        t = _TRACKED_ZERO_FLOOR if max_events == 0 else max(_TRACKED_ZERO_FLOOR, count / max_events)
+        return _lerp_hex(surface_alt, accent, t / 0.5) if t <= 0.5 else _lerp_hex(accent, accent2, (t - 0.5) / 0.5)
+
+    _MAX_RING_POINTS = 150  # real perf fix -- see build_coverage_map() docstring
+
+    def _decimate(ring, max_points=_MAX_RING_POINTS):
+        step = max(1, len(ring) // max_points)
+        return ring[::step]
+
+    @st.cache_resource
+    def build_coverage_map(world_geojson, events_by_ne_code, max_events, bg, surface, surface_alt, border, accent, accent2, text, text_muted):
+        """
+        Built once and cached (st.cache_resource, since a Plotly Figure isn't
+        the kind of plain data st.cache_data hashes well) -- Streamlit reruns
+        the whole script on every interaction anywhere in the app, and this
+        figure was originally built as 732 separate polygon traces (one per
+        country per disjoint landmass) totaling 50,589 points every single
+        rerun, measured directly, not guessed -- e.g. moving a slider on a
+        completely different tab was rebuilding this map from scratch. Two
+        real fixes here: caching, and merging each country's polygon parts
+        into a single trace (Plotly draws multiple disjoint filled shapes in
+        one trace when their coordinate lists are separated by a `None`),
+        cutting 732 traces to 119. Also decimates very large rings -- Russia
+        and the US alone contributed over 13,000 points from countries that
+        barely clip the edge of this map's actual viewport -- to a max of
+        150 points each, a real, disclosed simplification consistent with
+        this already being a non-precision equirectangular projection.
+        """
+        fig = go.Figure()
+        for feat in world_geojson["features"]:
+            ne_code = feat["properties"]["ADM0_A3"]
+            name = feat["properties"].get("NAME", ne_code)
+            tracked = ne_code in events_by_ne_code
+            count = events_by_ne_code.get(ne_code, 0)
+            fill_color = _event_color(count, max_events, surface_alt, accent, accent2) if tracked else surface_alt
+            # Real fix -- a tracked country with 0 events was rendering in the exact
+            # same fill as a country outside this project's panel entirely (21 of the
+            # 34 tracked countries have 0 real events, so most of the map was reading
+            # as "not tracked"). A visible border on every tracked country now makes
+            # all 34 identifiable regardless of fill.
+            line_color = accent if tracked else border
+            line_width = 0.9 if tracked else 0.6
+            hover = (
+                f"<b>{name}</b><br>Real distress events (2010–2024): {count}"
+                if tracked else f"<b>{name}</b><br>Outside this project's 34-country panel"
+            )
+
+            geom = feat["geometry"]
+            polygons = geom["coordinates"] if geom["type"] == "MultiPolygon" else [geom["coordinates"]]
+            lons, lats = [], []
+            for poly in polygons:
+                ring = _decimate(poly[0])  # exterior ring only -- interior holes not rendered, a real simplification
+                if lons:
+                    lons.append(None)
+                    lats.append(None)
+                lons.extend(pt[0] for pt in ring)
+                lats.extend(pt[1] for pt in ring)
+
+            fig.add_trace(go.Scatter(
+                x=lons, y=lats, mode="lines", fill="toself",
+                fillcolor=fill_color, line=dict(color=line_color, width=line_width),
+                hoveron="fills", hoverinfo="text", text=hover,
+                name=name, showlegend=False,
+            ))
+
+        fig.update_xaxes(range=[-24, 98], visible=False, fixedrange=True)
+        fig.update_yaxes(range=[-12, 46], visible=False, fixedrange=True, scaleanchor="x", scaleratio=1)
+        fig.update_layout(
+            height=440,
+            margin=dict(l=0, r=0, t=6, b=0),
+            plot_bgcolor=bg,
+            paper_bgcolor="rgba(0,0,0,0)",
+            hoverlabel=dict(bgcolor=surface, font=dict(family="IBM Plex Sans, sans-serif", color=text)),
+            font=dict(family="IBM Plex Sans, sans-serif", color=text_muted, size=12),
+        )
+        return fig
+
+    st.plotly_chart(
+        build_coverage_map(_world_geojson, _events_by_ne_code, _max_events, BG, SURFACE, SURFACE_ALT, BORDER, ACCENT, ACCENT2, TEXT, TEXT_MUTED),
+        use_container_width=True, config={"displayModeBar": False},
+    )
+    st.caption(
+        "Colored by each country's own real, counted total of sovereign defaults and IMF program entries "
+        "in this panel (2010–2024) — not an invented composite risk score. All 34 tracked countries are outlined; "
+        "21 of them have 0 real events in this panel and show as a dim tint, not the same plain gray as the "
+        "countries genuinely outside this project's 34-economy panel. Equirectangular projection, not a precision GIS map."
+    )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
     st.markdown('<div class="section-title">What this tool does</div>', unsafe_allow_html=True)
     st.markdown(
         "A live, interactive risk-analytics engine covering the same 34 MENA and South Asia economies as the "
