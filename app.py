@@ -25,51 +25,54 @@ st.set_page_config(page_title="EM Macro & Geopolitical Risk Engine", page_icon="
 HERE = os.path.dirname(__file__)
 
 # ============================================================
-# DESIGN SYSTEM -- same "Institute Brief" editorial family as the
-# MENASA Risk Monitor and Gulf Tracker (Inter / JetBrains Mono /
-# Newsreader, near-black ground), but with its own accent -- the
-# portfolio's own signature gold (matching The Crescent Brief), tying
-# this flagship visually to the rest of the body of work rather than
-# cloning either sibling tool outright.
+# DESIGN SYSTEM -- a genuine blend of both sibling tools, not a clone of
+# either: Gulf Tracker's actual light, warm, cream palette and readable
+# font choices (Public Sans, chosen there specifically for readability;
+# Source Serif 4 for headings; IBM Plex Mono for data), with MENASA's own
+# navy-blue accent color adopted as this app's primary, plus a touch of
+# the portfolio's own gold (The Crescent Brief) as a secondary highlight.
+# Chosen after directly inspecting both sibling apps' real .streamlit/
+# config.toml files, not guessed. Light backgrounds with dark text read
+# easier over a long session than the near-black theme this app started
+# with -- verified against real screenshots below, not assumed.
 # ============================================================
-BG = "#0a0a0a"
-SURFACE = "#161616"
-SURFACE_ALT = "#1f1f1f"
-BORDER = "rgba(255,255,255,0.10)"
-ACCENT = "#c9a84c"
-ACCENT_DIM = "rgba(201,168,76,0.12)"
-ACCENT2 = "#5b8dd6"
-ACCENT2_DIM = "rgba(91,141,214,0.12)"
-TEXT = "#f5f5f4"
-TEXT_MUTED = "#a3a3a3"
-GOOD = "#34d399"
-WARN = "#fbbf24"
-BAD = "#f87171"
+BG = "#F7F4EE"
+SURFACE = "#FFFFFF"
+SURFACE_ALT = "#ECEAE3"
+BORDER = "#D7D5CB"
+ACCENT = "#2463A5"
+ACCENT_DIM = "rgba(36,99,165,0.08)"
+ACCENT2 = "#B8912E"
+ACCENT2_DIM = "rgba(184,145,46,0.10)"
+TEXT = "#17202A"
+TEXT_MUTED = "#5B6472"
+GOOD = "#1E7D5C"
+WARN = "#A6790A"
+BAD = "#B3261E"
 
 st.markdown(f"""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Newsreader:ital,wght@0,500;0,600;0,700;1,500&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&family=Source+Serif+4:ital,wght@0,500;0,600;0,700;1,500&display=swap');
 
     html, body, [class*="css"] {{
-        font-family: 'Inter', -apple-system, sans-serif;
+        font-family: 'Public Sans', -apple-system, sans-serif;
         -webkit-font-smoothing: antialiased;
     }}
-    h1, h2, h3 {{ font-family: 'Inter', sans-serif !important; }}
-    .masthead-title, .section-title {{ font-family: 'Newsreader', Georgia, serif !important; }}
+    h1, h2, h3 {{ font-family: 'Public Sans', sans-serif !important; }}
+    .masthead-title, .section-title {{ font-family: 'Source Serif 4', Georgia, serif !important; }}
 
     /* Streamlit 1.63's actual DOM uses data-testid="stApp"/"stMain", not the
        older ".main" class -- verified by inspecting the real rendered page,
        not assumed from an older app's CSS. */
     [data-testid="stApp"], body {{
-        background: radial-gradient(ellipse 1400px 800px at 50% -10%, rgba(201,168,76,0.06), transparent),
-                    linear-gradient(180deg, {BG} 0%, #050505 100%) !important;
+        background: {BG} !important;
     }}
     [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stHeader"] {{
         background: transparent !important;
     }}
 
     .tag-label {{
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'IBM Plex Mono', monospace;
         font-size: 0.72rem;
         font-weight: 500;
         letter-spacing: 0.08em;
@@ -78,7 +81,7 @@ st.markdown(f"""
         margin-bottom: 0.7rem;
     }}
     .masthead-title {{
-        font-family: 'Inter', sans-serif;
+        font-family: 'Source Serif 4', Georgia, serif;
         font-size: 2.6rem;
         font-weight: 800;
         color: {TEXT};
@@ -108,7 +111,7 @@ st.markdown(f"""
         margin-bottom: 1rem;
     }}
     .stat-num {{
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'IBM Plex Mono', monospace;
         font-size: 1.9rem;
         font-weight: 700;
         color: {ACCENT};
@@ -130,7 +133,7 @@ st.markdown(f"""
         line-height: 1.6;
     }}
     .honest-box .label {{
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'IBM Plex Mono', monospace;
         font-size: 0.68rem;
         letter-spacing: 0.08em;
         text-transform: uppercase;
@@ -140,7 +143,7 @@ st.markdown(f"""
     }}
     .phase-pill {{
         display: inline-block;
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'IBM Plex Mono', monospace;
         font-size: 0.7rem;
         font-weight: 600;
         letter-spacing: 0.05em;
@@ -149,7 +152,7 @@ st.markdown(f"""
         border-radius: 20px;
         background: {ACCENT_DIM};
         color: {ACCENT};
-        border: 1px solid rgba(201,168,76,0.3);
+        border: 1px solid rgba(36,99,165,0.25);
         margin-bottom: 0.6rem;
     }}
     a {{ color: {ACCENT2}; }}
@@ -169,7 +172,7 @@ def style_chart(fig, height=380):
         height=height,
         plot_bgcolor=SURFACE,
         paper_bgcolor=SURFACE,
-        font=dict(family="Inter, sans-serif", color=TEXT_MUTED, size=12),
+        font=dict(family="Public Sans, sans-serif", color=TEXT_MUTED, size=12),
         margin=dict(l=10, r=10, t=30, b=10),
         xaxis=dict(gridcolor=BORDER, zerolinecolor=BORDER),
         yaxis=dict(gridcolor=BORDER, zerolinecolor=BORDER),
@@ -497,14 +500,14 @@ with tab4:
     with r1:
         st.markdown(
             f'<div class="card"><b style="color:{TEXT};">GDP Growth</b><br>'
-            f'<span style="color:{BAD};font-family:JetBrains Mono,monospace;font-size:1.3rem;">No real signal</span><br>'
+            f'<span style="color:{BAD};font-family:\'IBM Plex Mono\',monospace;font-size:1.3rem;">No real signal</span><br>'
             f'<span style="color:{TEXT_MUTED};font-size:0.85rem;">Loses to a naive "no change" baseline (3.41 vs '
             f'2.93 MAE on the real 2024 backtest) — consistent with well-documented growth literature.</span></div>',
             unsafe_allow_html=True)
     with r2:
         st.markdown(
             f'<div class="card"><b style="color:{TEXT};">Inflation</b><br>'
-            f'<span style="color:{GOOD};font-family:JetBrains Mono,monospace;font-size:1.3rem;">Real signal (R²=0.30)</span><br>'
+            f'<span style="color:{GOOD};font-family:\'IBM Plex Mono\',monospace;font-size:1.3rem;">Real signal (R²=0.30)</span><br>'
             f'<span style="color:{TEXT_MUTED};font-size:0.85rem;">Beats the naive baseline by 25% (10.63 vs 14.12 '
             f'MAE). Lag coefficient 0.574, p&lt;0.0001 — genuine, significant persistence.</span></div>',
             unsafe_allow_html=True)
@@ -651,6 +654,6 @@ with tab5:
 
     st.markdown(
         '<div class="card" style="text-align:center;"><a href="https://github.com/rafaywaqar2004-lang/sovereign-distress-model" '
-        'target="_blank" style="font-family:JetBrains Mono,monospace;font-size:0.85rem;">View full source on GitHub →</a></div>',
+        'target="_blank" style="font-family:\'IBM Plex Mono\',monospace;font-size:0.85rem;">View full source on GitHub →</a></div>',
         unsafe_allow_html=True,
     )
