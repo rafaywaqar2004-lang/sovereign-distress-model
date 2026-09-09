@@ -1,17 +1,17 @@
 [theme]
-# A genuine blend of both sibling tools, not a clone of either: Gulf
-# Tracker's light, warm, cream palette and readable Public Sans/Source
-# Serif 4 fonts (chosen there for readability), MENASA's navy-blue accent
-# swapped in as this app's primary (Gulf's own accent color), and a touch
-# of the portfolio's own gold (Crescent Brief) as a secondary highlight —
-# tying this flagship visually to all three siblings instead of picking
-# one look outright.
-base = "light"
-primaryColor = "#2463A5"
-backgroundColor = "#F7F4EE"
-secondaryBackgroundColor = "#FFFFFF"
-textColor = "#17202A"
-borderColor = "#D7D5CB"
+# Dark navy/charcoal base per direct user request, keeping the same navy
+# accent family this app has used throughout (from MENASA's own primary),
+# brightened from #2463A5 to #4A90D9 so it clears WCAG AA contrast against
+# a near-black ground (verified: 5.8:1 on the page background, 5.2:1 on
+# card surfaces -- the original hex only cleared ~3:1 on dark). Public
+# Sans/Source Serif 4/IBM Plex Mono fonts kept from the earlier light
+# pass -- only the color scheme changed, not the type system.
+base = "dark"
+primaryColor = "#4A90D9"
+backgroundColor = "#0A0E14"
+secondaryBackgroundColor = "#131A24"
+textColor = "#F0EFEA"
+borderColor = "#2A3542"
 font = "sans serif"
 headingFont = "serif"
 codeFont = "monospace"

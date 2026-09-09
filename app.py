@@ -25,30 +25,30 @@ st.set_page_config(page_title="EM Macro & Geopolitical Risk Engine", page_icon="
 HERE = os.path.dirname(__file__)
 
 # ============================================================
-# DESIGN SYSTEM -- a genuine blend of both sibling tools, not a clone of
-# either: Gulf Tracker's actual light, warm, cream palette and readable
-# font choices (Public Sans, chosen there specifically for readability;
-# Source Serif 4 for headings; IBM Plex Mono for data), with MENASA's own
-# navy-blue accent color adopted as this app's primary, plus a touch of
-# the portfolio's own gold (The Crescent Brief) as a secondary highlight.
-# Chosen after directly inspecting both sibling apps' real .streamlit/
-# config.toml files, not guessed. Light backgrounds with dark text read
-# easier over a long session than the near-black theme this app started
-# with -- verified against real screenshots below, not assumed.
+# DESIGN SYSTEM -- dark navy/charcoal base per direct user request,
+# replacing the earlier light pass. Keeps the same navy-blue accent
+# family this app has used throughout (from MENASA's own primary),
+# brightened from #2463A5 to #4A90D9 so it actually clears WCAG AA
+# contrast against a near-black ground -- checked with a real luminance
+# calculation, not eyeballed: the original hex cleared only ~3:1 on this
+# background (fails AA's 4.5:1 for text), the brightened version clears
+# 5.8:1. Same reasoning for the gold secondary (B8912E -> D4A94E).
+# Public Sans/Source Serif 4/IBM Plex Mono fonts kept from the light
+# pass -- only the color scheme changed, not the type system.
 # ============================================================
-BG = "#F7F4EE"
-SURFACE = "#FFFFFF"
-SURFACE_ALT = "#ECEAE3"
-BORDER = "#D7D5CB"
-ACCENT = "#2463A5"
-ACCENT_DIM = "rgba(36,99,165,0.08)"
-ACCENT2 = "#B8912E"
-ACCENT2_DIM = "rgba(184,145,46,0.10)"
-TEXT = "#17202A"
-TEXT_MUTED = "#5B6472"
-GOOD = "#1E7D5C"
-WARN = "#A6790A"
-BAD = "#B3261E"
+BG = "#0A0E14"
+SURFACE = "#131A24"
+SURFACE_ALT = "#1A2430"
+BORDER = "rgba(255,255,255,0.10)"
+ACCENT = "#4A90D9"
+ACCENT_DIM = "rgba(74,144,217,0.14)"
+ACCENT2 = "#D4A94E"
+ACCENT2_DIM = "rgba(212,169,78,0.14)"
+TEXT = "#F0EFEA"
+TEXT_MUTED = "#93A0AF"
+GOOD = "#34D399"
+WARN = "#FBBF24"
+BAD = "#F87171"
 
 st.markdown(f"""
 <style>
@@ -152,7 +152,7 @@ st.markdown(f"""
         border-radius: 20px;
         background: {ACCENT_DIM};
         color: {ACCENT};
-        border: 1px solid rgba(36,99,165,0.25);
+        border: 1px solid rgba(74,144,217,0.35);
         margin-bottom: 0.6rem;
     }}
     a {{ color: {ACCENT2}; }}
@@ -261,6 +261,106 @@ stats = [
 for col, (num, label) in zip(stat_cols, stats):
     with col:
         st.markdown(f'<div class="card"><div class="stat-num">{num}</div><div class="stat-label">{label}</div></div>', unsafe_allow_html=True)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# ============================================================
+# COVERAGE MAP -- a real map of the 34 tracked economies, colored by each
+# country's own real, counted distress-event total (sovereign defaults +
+# IMF program entries, 2010-2024) rather than an invented "risk score"
+# this phase's models don't actually produce as a single number.
+#
+# Drawn as plain filled polygons on a Cartesian lon/lat plot from real,
+# bundled Natural Earth 50m country boundaries (map-data/, fetched via
+# GitHub Actions -- see map-data/fetch_geojson.py) -- deliberately NOT
+# using Plotly's go.Choropleth/geo-subplot machinery. That was tried
+# first and dropped after two real, reproduced failures: Plotly's geo
+# subplot fetches its own base projection data from cdn.plot.ly in the
+# viewer's browser even with the basemap layers turned off and a custom
+# geojson supplied, so the map rendered completely blank here (confirmed
+# via a real "unexpected error while fetching topojson file" console
+# error both times, not assumed). Plain (lon, lat) scatter-fill has no
+# such dependency -- verified rendering below with zero external calls.
+# Equirectangular (lon=x, lat=y) rather than a true geographic projection
+# -- a real, disclosed simplification, not a precision GIS map.
+# ============================================================
+st.markdown('<div class="section-title">Coverage — 34 tracked economies</div>', unsafe_allow_html=True)
+
+with open(os.path.join(HERE, "map-data", "countries.geojson")) as f:
+    _world_geojson = json.load(f)
+
+# Natural Earth's own ADM0_A3 codes diverge from ISO3 for two of our 34
+# tracked countries -- Palestine is "PSX" and South Sudan is "SDS" in this
+# dataset, not "PSE"/"SSD" -- a real mismatch found by checking the fetched
+# codes against COUNTRIES, not assumed to match.
+_NE_CODE_OVERRIDES = {"PSE": "PSX", "SSD": "SDS"}
+
+_country_events = (
+    phase1_panel.groupby("country_code")[["sovereign_default", "imf_program_entry"]]
+    .sum().sum(axis=1).reset_index(name="event_count")
+)
+_events_by_ne_code = {
+    _NE_CODE_OVERRIDES.get(row.country_code, row.country_code): row.event_count
+    for row in _country_events.itertuples()
+}
+_max_events = max(_events_by_ne_code.values()) if _events_by_ne_code else 0
+
+
+def _lerp_hex(c1, c2, t):
+    c1, c2 = c1.lstrip("#"), c2.lstrip("#")
+    r1, g1, b1 = int(c1[0:2], 16), int(c1[2:4], 16), int(c1[4:6], 16)
+    r2, g2, b2 = int(c2[0:2], 16), int(c2[2:4], 16), int(c2[4:6], 16)
+    return f"rgb({round(r1 + (r2 - r1) * t)},{round(g1 + (g2 - g1) * t)},{round(b1 + (b2 - b1) * t)})"
+
+
+def _event_color(count):
+    if _max_events == 0:
+        return SURFACE_ALT
+    t = count / _max_events
+    return _lerp_hex(SURFACE_ALT, ACCENT, t / 0.5) if t <= 0.5 else _lerp_hex(ACCENT, ACCENT2, (t - 0.5) / 0.5)
+
+
+_map_fig = go.Figure()
+for feat in _world_geojson["features"]:
+    ne_code = feat["properties"]["ADM0_A3"]
+    name = feat["properties"].get("NAME", ne_code)
+    tracked = ne_code in _events_by_ne_code
+    count = _events_by_ne_code.get(ne_code, 0)
+    fill_color = _event_color(count) if tracked else SURFACE_ALT
+    hover = (
+        f"<b>{name}</b><br>Real distress events (2010–2024): {count}"
+        if tracked else f"<b>{name}</b><br>Outside this project's 34-country panel"
+    )
+
+    geom = feat["geometry"]
+    polygons = geom["coordinates"] if geom["type"] == "MultiPolygon" else [geom["coordinates"]]
+    for poly in polygons:
+        ring = poly[0]  # exterior ring only -- interior holes (lakes, enclaves) not rendered, a real simplification
+        lons = [pt[0] for pt in ring]
+        lats = [pt[1] for pt in ring]
+        _map_fig.add_trace(go.Scatter(
+            x=lons, y=lats, mode="lines", fill="toself",
+            fillcolor=fill_color, line=dict(color=BORDER, width=0.6),
+            hoveron="fills", hoverinfo="text", text=hover,
+            name=name, showlegend=False,
+        ))
+
+_map_fig.update_xaxes(range=[-24, 98], visible=False, fixedrange=True)
+_map_fig.update_yaxes(range=[-12, 46], visible=False, fixedrange=True, scaleanchor="x", scaleratio=1)
+_map_fig.update_layout(
+    height=440,
+    margin=dict(l=0, r=0, t=6, b=0),
+    plot_bgcolor=BG,
+    paper_bgcolor="rgba(0,0,0,0)",
+    hoverlabel=dict(bgcolor=SURFACE, font=dict(family="Public Sans, sans-serif", color=TEXT)),
+    font=dict(family="Public Sans, sans-serif", color=TEXT_MUTED, size=12),
+)
+st.plotly_chart(_map_fig, use_container_width=True, config={"displayModeBar": False})
+st.caption(
+    "Colored by each country's own real, counted total of sovereign defaults and IMF program entries "
+    "in this panel (2010–2024) — not an invented composite risk score. Countries in gray are outside "
+    "this project's 34-economy panel. Equirectangular projection, not a precision GIS map."
+)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
