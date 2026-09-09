@@ -73,6 +73,17 @@ def main():
     results = []
     validation_notes = []
 
+    # Save incrementally after each event -- a real, expensive lesson from
+    # this exact script: GDELT's real rate-limiting got aggressive enough
+    # with 12 events that a run legitimately timed out mid-way, and since
+    # results were only written at the very end, 10 of 12 already-fetched
+    # real events were silently lost. Now every event's real result is
+    # written to disk as soon as it's fetched, so a timeout never discards
+    # real work already done.
+    def save():
+        with open("shock_timelines_raw.json", "w") as f:
+            json.dump(results, f, indent=2)
+
     for event in SHOCK_EVENTS:
         code = event["country_code"]
         fips = ISO3_TO_FIPS.get(code)
@@ -116,9 +127,8 @@ def main():
             "tone_timeline": tone_data,
             "volume_timeline": vol_data,
         })
-
-    with open("shock_timelines_raw.json", "w") as f:
-        json.dump(results, f, indent=2)
+        save()
+        print(f"  (saved progress: {len(results)} of {len(SHOCK_EVENTS)} events so far)")
 
     print(f"\nSaved shock_timelines_raw.json ({len(results)} events)")
     if validation_notes:
