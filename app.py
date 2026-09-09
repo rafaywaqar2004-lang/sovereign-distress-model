@@ -512,13 +512,19 @@ with tab1:
         r2, g2, b2 = int(c2[0:2], 16), int(c2[2:4], 16), int(c2[4:6], 16)
         return f"rgb({round(r1 + (r2 - r1) * t)},{round(g1 + (g2 - g1) * t)},{round(b1 + (b2 - b1) * t)})"
 
-    _TRACKED_ZERO_FLOOR = 0.22  # real fix -- see build_coverage_map() docstring on the "invisible 21" bug
+    # Real fix -- a direct user report: with a linear 0-to-max scale, only
+    # Pakistan (4 real events, the panel's outlier max) reached the orange
+    # end of the gradient, while every "1 event" country (Egypt, Jordan,
+    # Iraq, Lebanon, Nepal, Sudan, Somalia, South Sudan, Yemen, Bangladesh)
+    # and "2 event" Sri Lanka all landed in a similarly light teal band,
+    # indistinguishable from each other. Fixed-count steps instead of a
+    # linear-to-max scale, so a country's color reflects its own real count,
+    # not its count relative to Pakistan's outlier value.
+    _EVENT_COUNT_STEPS = {0: 0.15, 1: 0.45, 2: 0.70}
+    _EVENT_COUNT_STEP_MAX = 1.0  # 3+ events
 
     def _event_color(count, max_events, surface_alt, accent, accent2):
-        # A tracked country with zero real events must still read as tracked,
-        # not blend into the "outside this panel" background -- floored at a
-        # dim, visible tint rather than 0.
-        t = _TRACKED_ZERO_FLOOR if max_events == 0 else max(_TRACKED_ZERO_FLOOR, count / max_events)
+        t = _EVENT_COUNT_STEPS.get(count, _EVENT_COUNT_STEP_MAX if count >= 3 else _EVENT_COUNT_STEPS[0])
         return _lerp_hex(surface_alt, accent, t / 0.5) if t <= 0.5 else _lerp_hex(accent, accent2, (t - 0.5) / 0.5)
 
     _MAX_RING_POINTS = 150  # real perf fix -- see build_coverage_map() docstring
