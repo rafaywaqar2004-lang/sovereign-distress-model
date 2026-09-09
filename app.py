@@ -501,6 +501,18 @@ def load_country_equity_signals():
 country_equity_signals = load_country_equity_signals()
 
 
+@st.cache_data
+def load_displacement():
+    path = os.path.join(HERE, "data", "displacement.csv")
+    if not os.path.exists(path):
+        return None
+    df = pd.read_csv(path)
+    return df.sort_values("year").groupby("country_code").tail(1).set_index("country_code")
+
+
+displacement_latest = load_displacement()
+
+
 # ============================================================
 # TRADE NETWORK / SPILLOVER -- real UN Comtrade bilateral trade data, once
 # fetched (data/fetch_trade_network.py, gated on a real COMTRADE_API_KEY
@@ -1077,6 +1089,23 @@ with tab2:
                     unsafe_allow_html=True,
                 )
 
+            if displacement_latest is not None and sel_country in displacement_latest.index:
+                d_row = displacement_latest.loc[sel_country]
+                d_cols = st.columns(3)
+                with d_cols[0]:
+                    st.markdown(f'<div class="card"><b>Refugees (from)</b><br>'
+                                f'<span style="font-family:\'IBM Plex Mono\',monospace;font-size:1.2rem;">{d_row["refugees_from"]:,.0f}</span></div>', unsafe_allow_html=True)
+                with d_cols[1]:
+                    st.markdown(f'<div class="card"><b>IDPs</b><br>'
+                                f'<span style="font-family:\'IBM Plex Mono\',monospace;font-size:1.2rem;">{d_row["idps_from"]:,.0f}</span></div>', unsafe_allow_html=True)
+                with d_cols[2]:
+                    st.markdown(f'<div class="card"><b>Asylum seekers (from)</b><br>'
+                                f'<span style="font-family:\'IBM Plex Mono\',monospace;font-size:1.2rem;">{d_row["asylum_seekers_from"]:,.0f}</span></div>', unsafe_allow_html=True)
+                st.caption(
+                    f"Real UNHCR figures ({int(d_row['year'])}), context/amplification only — not folded into any "
+                    f"score. See Methodology for source and the real coverage caveat (23 of 34 countries)."
+                )
+
             eq_signal = country_equity_signals.get(sel_country)
             if eq_signal:
                 years = sorted(int(y) for y in eq_signal["annual_avg_close_usd"].keys())
@@ -1618,6 +1647,13 @@ with tab5:
             "their country (anomalous short histories, likely a different company sharing the ticker) were "
             "excluded rather than mislabeled. Not a bond yield or CDS substitute — a different real, market-"
             "implied signal, for the 8 of 34 countries where one exists.\n\n"
+            "**Real displacement data** (`data/fetch_displacement.py`, UNHCR's public Refugee Data Finder API): "
+            "refugees, IDPs, and asylum seekers originating from 23 of the 34 tracked countries. The other 11 "
+            "returned no real rows across 2015-2025 — most plausibly genuinely low/no reported outflow for "
+            "stable Gulf states in that group, though this wasn't individually confirmed per country against "
+            "the raw API, so read as \"no data returned,\" not a verified \"zero displacement\" claim. Context/"
+            "amplification only — never folded into any score. Real, correct figures at the top: Syria (4.87M "
+            "refugees, 5.54M IDPs), Afghanistan, South Sudan, Somalia.\n\n"
             "**Sub-index validation** (`model/validate_sub_indices.py`) — the 6 sub-indices below are diagnostic, "
             "not predictive (Phase 1's fitted logit remains the only real predictive model here), but they were "
             "checked anyway: does a sub-index's current standing associate with whether a country has EVER had a "
