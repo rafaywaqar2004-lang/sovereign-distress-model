@@ -44,11 +44,15 @@ def fetch_country_year(iso3, year, retries=2):
         time.sleep(1)
 
     if result is None or result.returncode != 0 or not result.stdout:
+        print(f"  {iso3} {year}: no response (curl failed)")
         return []
     try:
         payload = json.loads(result.stdout)
     except json.JSONDecodeError:
+        print(f"  {iso3} {year}: non-JSON response -- {result.stdout[:200]}")
         return []
+    if isinstance(payload, dict) and "items" not in payload:
+        print(f"  {iso3} {year}: unexpected shape -- {json.dumps(payload)[:300]}")
     return payload.get("items", []) if isinstance(payload, dict) else []
 
 
