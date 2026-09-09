@@ -1,0 +1,17 @@
+name: Diagnostic test (throwaway, manual use)
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'URL to curl and print the raw response of'
+        required: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Curl and print
+        run: |
+          curl -s -m 20 "${{ inputs.url }}" | head -c 3000
+          echo ""
