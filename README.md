@@ -137,12 +137,14 @@ for macro forecasting. Full source table in the live app's Methodology tab.
 **3. Risk-index construction.** Not a weighted composite score — a fitted
 logistic regression (`model/distress_model.py`), so "weights" are the
 model's own estimated coefficients, not arbitrary analyst judgment.
-**A real limitation found in a later audit, disclosed rather than fixed
-quietly**: the 5 economic factors this model is fit on are the same 0–100
-normalized risk sub-scores whose mislabeling was already caught for Phase 3
-— never caught here until this pass. Coefficients should be read in
-normalized risk-rank units, not literal percentage points; refitting on
-Phase 3's real raw values is the clear next step, not yet done.
+**A real limitation found in a later audit, since fixed**: the 5 economic
+factors this model is fit on were originally the same 0–100 normalized
+risk sub-scores whose mislabeling was already caught for Phase 3 — missed
+here at first. Fixed by refitting on Phase 3's real raw values for those 5
+factors (governance/WGI factors were already correctly on their real 0–100
+percentile scale, and are unchanged) — re-validated in R after the fix; see
+`data/build_panel.py` for the exact swap and the missingness check run
+before it.
 
 **4. Econometric methodology.** Panel logistic regression with
 country-clustered standard errors (Phase 1); panel fixed-effects AR(1)
@@ -151,28 +153,38 @@ oil-price shock on growth/inflation (Phase 3, Jordà-style, panel FE at each
 horizon); an event-study correlation, n=5, explicitly not treated as a
 statistical test (Phase 2). All independently cross-validated in R.
 
-**5. Empirical results.** political_stability and gdp_growth are the only
-factors significant at 5% in the primary distress specification. The
-oil-shock local projection shows a real, substantive pattern: a
-significant positive effect on GDP growth on impact (h=0, many of these
-economies are oil producers/exporters) that reverses to significant and
-negative by h=2 — inflation shows no significant effect at any horizon,
-consistent with the stress-test model's own finding.
+**5. Empirical results.** With the corrected raw data, `reserves_months_imports`
+is now the dominant significant economic predictor (p<0.001) — a real,
+economically sensible result (thin import cover is a classic
+balance-of-payments warning sign) that the earlier, mislabeled data
+obscured. `political_stability` remains significant; `gdp_growth`, which
+appeared significant under the old mislabeled data, no longer is — a real,
+disclosed change in the result, not smoothed over. The oil-shock local
+projection shows a separate, real pattern: a significant positive effect on
+GDP growth on impact (h=0, many of these economies are oil
+producers/exporters) that reverses to significant and negative by h=2 —
+inflation shows no significant effect at any horizon, consistent with the
+stress-test model's own finding.
 
-**6. Backtesting.** In-sample AUC 0.85 (12 events, 10 predictors — a real
+**6. Backtesting.** In-sample AUC 0.84 (12 events, 10 predictors — a real
 overfitting risk, disclosed). A genuine out-of-sample temporal holdout
-(train ≤2021, 4 events; test 2022–2024, 8 events) gives AUC 0.74, but the
-raw predicted probabilities in the holdout never exceed 0.5% and do not
-cleanly separate real events from non-events — **read as historically
-associated with distress, not as a working early-warning system.**
+(train ≤2021, 4 events; test 2022–2024, 8 events) gives AUC 0.69. The
+holdout's own real instability shows directly: Lebanon 2023 is predicted at
+essentially 100% probability, driven by genuinely extreme real values that
+year (221% inflation, an 820% currency depreciation) — not an error, but a
+real illustration of how few training events this model has to work with.
+Pakistan's actual 2023/2024 entries rank 5th and 4th highest, not 1st and
+2nd. **Read as historically associated with distress, not as a working
+early-warning system.**
 
 **7. Model benchmarking.** A real, current-snapshot cross-sectional check
 against S&P sovereign ratings (`data/credit_ratings.py`, copied from
-MENASA's own sourced dataset) gives a moderate positive rank correlation
-(Spearman ρ≈0.55, n=19). Ethiopia — in real selective default — is
-independently ranked 2nd-highest by the model, a real point in its favor.
-Lebanon — also in real selective default — ranks 18th of 19, a genuine,
-disclosed divergence.
+MENASA's own sourced dataset). The raw-data fix produced a real,
+substantive improvement here: rank correlation rose from ρ≈0.55 to ρ≈0.77
+(n=19). Ethiopia — in real selective default — ranks 2nd-highest by the
+model. Lebanon — also in real selective default, and the case the pre-fix
+model missed entirely (ranked 18th of 19) — now ranks 4th. That reversal is
+real evidence the fix mattered, not just a units correction.
 
 **8. Scenario analysis.** Named presets (Baseline/Escalation/
 De-escalation/Severe tail-risk) apply real, fitted oil/rate coefficients
@@ -182,11 +194,16 @@ assign a probability to each scenario, and this project does not fabricate
 one.
 
 **9. Limitations.** Rare-event data (17 real events total); near-perfect
-separation risk in the 2-event `sovereign_default` outcome; normalized-vs-
-raw factor mislabeling (§3); a cross-sectional-only ratings benchmark, not
-a historical time series; no bilateral trade/spillover-network data
-fetched, so cross-country contagion channels are not modeled here; no
-formal probability calibration beyond the logit's own fitted probabilities.
+separation risk in the 2-event `sovereign_default` outcome (worse now on
+the corrected raw scale — coefficients there are large and unstable,
+already flagged in the model's own output as exploratory only); a
+cross-sectional-only ratings benchmark, not a historical time series; no
+bilateral trade/spillover-network data fetched, so cross-country contagion
+channels are not modeled here; no formal probability calibration beyond
+the logit's own fitted probabilities; the out-of-sample holdout is
+dominated by a single extreme observation (Lebanon 2023) given only 4
+training events, a real illustration of how thin this panel's event count
+still is.
 
 **10. What was deliberately not attempted, and why.** Formal
 macro-vs-geopolitical "ablation" testing at panel scale — the only real

@@ -702,20 +702,18 @@ with tab2:
     )
 
     st.markdown(
-        '<div class="honest-box"><span class="label">Known limitation — unresolved</span>'
-        'The 5 economic factors this model is fit on (<code>current_account_pct_gdp</code>, <code>reserves_months_imports</code>, '
-        '<code>gdp_growth</code>, <code>inflation</code>, <code>currency_depreciation_pct</code>) are the same 0–100 '
-        '<b>normalized risk sub-scores</b> whose mislabeling was already caught and fixed for Phase 3\'s forecasting model '
-        '(see the Forecast &amp; Stress Test tab\'s own data-limitation note) — but that exact same issue was never caught here, in the model that '
-        'actually predicts distress. Real check: this panel\'s <code>current_account_pct_gdp</code> for Pakistan in 2023 reads '
-        '48.3; the real value, from Phase 3\'s corrected raw data, is <b>-0.3% of GDP</b>. Real 2023 inflation was ~30.8%; this '
-        'panel shows 15.7. The <b>governance</b> factors (political_stability, rule_of_law, etc.) are correctly on a 0–100 scale '
-        '— that is the real World Bank WGI percentile convention, not a bug. The 5 economic factors are not. This does not '
-        'necessarily invalidate the model\'s statistical discrimination (a rank-transformed regressor can still fit and predict '
-        'validly), but it does mean coefficients and the risk-attribution chart below should be read in normalized risk-rank '
-        'units, not literal percentage points — refitting the primary specification on Phase 3\'s real raw values for these 5 '
-        'factors, then re-validating in R, is flagged here as the clear next step, not attempted in this pass so as not to '
-        'silently change a model this page also describes as already R-validated without actually redoing that validation.</div>',
+        '<div class="honest-box"><span class="label">Data limitation, since resolved</span>'
+        'A later audit found that the 5 economic factors this model is fit on (<code>current_account_pct_gdp</code>, '
+        '<code>reserves_months_imports</code>, <code>gdp_growth</code>, <code>inflation</code>, '
+        '<code>currency_depreciation_pct</code>) were the same 0–100 normalized risk sub-scores whose mislabeling was '
+        'already caught and fixed for Phase 3\'s forecasting model, but missed here at first. Fixed: the primary '
+        'specification now uses Phase 3\'s real raw values for these 5 factors (e.g. Pakistan\'s 2023 current account '
+        'is correctly <b>-0.3% of GDP</b>, not 48.3), while keeping the <b>governance</b> factors (political_stability, '
+        'rule_of_law, etc.) on their real 0–100 World Bank WGI percentile scale, which was already correct. Refit and '
+        're-validated in R after the fix — see the coefficient table below. The refit changed which factors are '
+        'significant: <code>reserves_months_imports</code> is now significant (p&lt;0.001, wasn\'t before) and '
+        '<code>gdp_growth</code> no longer is (was significant with the old mislabeled data) — a real, honest change '
+        'in the result, not smoothed over.</div>',
         unsafe_allow_html=True,
     )
 
@@ -747,11 +745,11 @@ with tab2:
         events_here = country_data[(country_data["sovereign_default"] == 1) | (country_data["imf_program_entry"] == 1)]
         fig2 = go.Figure()
         fig2.add_trace(go.Bar(x=country_data["year"], y=country_data["current_account_pct_gdp"],
-                               name="Current Account (normalized)", marker_color=ACCENT))
+                               name="Current Account (% GDP)", marker_color=ACCENT))
         for _, row in events_here.iterrows():
             fig2.add_vline(x=row["year"], line_dash="dot",
                             line_color=BAD if row["sovereign_default"] == 1 else WARN)
-        fig2.update_layout(title="Current account factor, with real distress-event markers")
+        fig2.update_layout(title="Real current account balance (% GDP), with real distress-event markers")
         st.plotly_chart(style_chart(fig2), use_container_width=True)
 
     if events_here.empty:
@@ -805,8 +803,9 @@ with tab2:
             "panel; green bars push it down. This is a decomposition of the model's own fitted coefficients "
             "against real data for this country-year, not a separate causal claim — a factor pushing the score "
             "up is not proof it caused distress, only that it differs from this panel's average in the direction "
-            "the fitted model associates with entry. Read the 5 economic factors' contributions in normalized "
-            "risk-rank units, not literal percentage points — see the limitation noted above."
+            "the fitted model associates with entry. The 5 economic factors' contributions are now in real economic "
+            "units (percentage points, months of reserves cover, etc.) since the data-limitation fix noted above; "
+            "the governance factors remain in their real 0–100 WGI percentile units."
         )
 
     # ============================================================
@@ -879,8 +878,8 @@ with tab2:
             f'<b>Model confidence:</b> {"Low" if phase1_in_sample_val["n_events"] < 20 else "Moderate"} — fit on only '
             f'{phase1_in_sample_val["n_events"]} real positive events; out-of-sample validation above shows the model does '
             f'not confidently flag specific countries ahead of real events.<br>'
-            f'<b>Limitation:</b> the 5 economic factors above are normalized risk-rank units, not raw percentages — see the '
-            f'note near the top of this tab.'
+            f'<b>Limitation:</b> only {phase1_in_sample_val["n_events"]} real positive events — near-perfect separation risk in the '
+            f'rarer sovereign_default outcome, disclosed in Methodology &amp; Validation.'
             f'</div>', unsafe_allow_html=True,
         )
         st.caption(
@@ -1194,7 +1193,7 @@ with tab5:
         f"{int(phase1_complete['imf_program_entry'].sum())} of 15 real imf_program_entry events retained) — "
         "not a static, hand-copied table, so this can never silently drift from the model actually producing "
         "the numbers above. Independently cross-validated in R "
-        "(glm + cluster-robust SEs) — matches almost to the decimal (e.g. political_stability: 0.0734 in both "
+        "(glm + cluster-robust SEs) — matches almost to the decimal (e.g. reserves_months_imports: -0.1808 in both "
         "Python and R). Full model output and the debt_to_gdp robustness check in model/distress_model.py."
     )
 
@@ -1226,13 +1225,16 @@ with tab5:
 
     st.markdown(
         '<div class="honest-box"><span class="label">Validation note</span>'
-        'The out-of-sample AUC looks moderate, but it is fit on a training set with only 4 real positive events — far below '
-        'any reasonable threshold for a stable logistic fit. More telling than the AUC itself: none of the real predicted '
-        'probabilities in the 2022-2024 holdout exceed 0.5%, and the ranking does not cleanly separate the country-years that '
-        'actually had a real event from the ones that did not — Pakistan\'s real 2023 and 2024 IMF program entries rank 4th '
-        'and 7th highest, not 1st and 2nd, among the holdout\'s predicted probabilities. <b>This model should be read as '
-        'historically associated with distress, not as an operational early-warning system</b> — it does not confidently '
-        'flag specific countries ahead of real events in this genuine holdout test.</div>',
+        'The out-of-sample AUC is fit on a training set with only 4 real positive events — far below any reasonable '
+        'threshold for a stable logistic fit, and the holdout result shows exactly that instability: Lebanon 2023 is '
+        'predicted at essentially 100% probability, an extreme outlier driven by genuinely extreme real values that '
+        'year (221% inflation, an 820% currency depreciation) sitting far outside the training data\'s normal range — '
+        'not a data error. Lebanon had no <i>new</i> coded event that year (its actual sovereign default is already '
+        'captured in 2020; this dataset has no separate "still in crisis" flag), so a naive reading counts this as a '
+        'false positive, though the underlying signal — Lebanon in genuine, severe distress — is real. Pakistan\'s '
+        'actual 2023 and 2024 IMF program entries rank 5th and 4th highest, not 1st and 2nd. <b>This model should be read '
+        'as historically associated with distress, not as an operational early-warning system</b> — with only 4 '
+        'training events, a handful of countries with real, extreme values can dominate the holdout\'s ranking.</div>',
         unsafe_allow_html=True,
     )
 
@@ -1259,14 +1261,12 @@ with tab5:
     st.plotly_chart(style_chart(bench_fig, height=380), use_container_width=True)
     st.caption(
         f"{phase1_benchmark_unrated} of {len(phase1_benchmark) + phase1_benchmark_unrated} countries have no real S&P rating "
-        "and are excluded here, not imputed. A moderate, positive rank correlation (ρ≈0.55) — the model broadly agrees with "
-        "real ratings. Ethiopia is a real point in the model's favor: it's in actual selective default (S&P: SD) today, and "
-        "the model independently ranks it 2nd-highest of the 19 rated countries by predicted probability — real agreement, "
-        "not assumed. Lebanon is the opposite, a genuine divergence not smoothed over: also in real SD today, yet it ranks "
-        "near the BOTTOM of this model's own current probability (18th of 19) — the model is not currently flagging its "
-        "own worst-rated, already-defaulted country. A genuine limitation, not a display error — likely because Lebanon's "
-        "most recent complete-case panel year predates the full severity of its crisis in the specific factors this model "
-        "uses. Cross-sectional snapshot only, "
+        "and are excluded here, not imputed. A real, substantive improvement from fixing the normalized-vs-raw data issue "
+        "above: this rank correlation rose from ρ≈0.55 to ρ≈0.77 once the model was refit on real values — the model now "
+        "agrees much more closely with independent rating agencies. Both of this panel's real selective-default countries "
+        "are now correctly flagged near the top: Ethiopia ranks 2nd-highest of 19 by predicted probability, and Lebanon — "
+        "which the pre-fix model missed entirely, ranking it 18th of 19 — now ranks 4th. That reversal is real evidence the "
+        "fix mattered, not just a units correction. Cross-sectional snapshot only, "
         "not a historical time-series benchmark — real ratings by year were never fetched for this project."
     )
 

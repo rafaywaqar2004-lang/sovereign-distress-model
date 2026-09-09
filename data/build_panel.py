@@ -2,10 +2,23 @@
 Builds the single analysis panel this project's model is fit on.
 
 Features (X): the same 11 World Bank / WGI factors already fetched, sourced,
-and validated by the MENASA Risk Monitor (driver_history.csv, copied
-directly from that project -- same official World Bank API pull, same 34
-countries, same 2010-2024 coverage. Not re-fetched here to avoid drifting
-from the already-validated source).
+and validated by the MENASA Risk Monitor -- but NOT simply driver_history.csv
+verbatim. Real finding from a later audit: driver_history.csv's 5 economic
+factors (current_account_pct_gdp, reserves_months_imports, gdp_growth,
+inflation, currency_depreciation_pct) are normalized 0-100 risk sub-scores,
+not the raw economic values their names imply -- the same mislabeling
+already caught and fixed for Phase 3's forecasting model, but missed here
+until this fix. The 5 governance/WGI factors (political_stability,
+government_effectiveness, rule_of_law, regulatory_quality,
+control_of_corruption) are correctly left on driver_history.csv's 0-100
+scale -- that IS the real World Bank WGI percentile convention, not a bug.
+
+So: governance factors come from driver_history.csv (unchanged); the 5
+economic factors are swapped in from forecast-module/raw_panel.csv's real
+raw values instead. Verified before this swap: identical missingness
+pattern in both sources for all 5 economic columns (91/96/31/44/64 missing
+respectively) -- this is a pure value-scale correction, not a change to
+which country-years are included.
 
 Outcome (Y): the real, sourced distress events in distress_events.py.
 
@@ -15,15 +28,40 @@ columns (sovereign_default, imf_program_entry).
 import pandas as pd
 from distress_events import build_distress_panel
 
-driver = pd.read_csv("driver_history.csv")
+GOV_COLS = [
+    "political_stability", "government_effectiveness", "rule_of_law",
+    "regulatory_quality", "control_of_corruption",
+]
+ECON_COLS = [
+    "current_account_pct_gdp", "reserves_months_imports",
+    "gdp_growth", "inflation", "currency_depreciation_pct",
+]
 
-country_years = list(zip(driver["country_code"], driver["year"]))
+driver = pd.read_csv("driver_history.csv")
+raw = pd.read_csv("../forecast-module/raw_panel.csv")
+
+before_missing = driver[ECON_COLS].isna().sum()
+after_missing_check = raw.merge(driver[["country_code", "year"]], on=["country_code", "year"], how="inner")[ECON_COLS].isna().sum()
+assert (before_missing == after_missing_check).all(), (
+    "Missingness pattern differs between driver_history.csv and raw_panel.csv for the 5 economic factors -- "
+    "the swap below assumes they're identical (verified separately before writing this script). If this "
+    "assertion ever fails, investigate before proceeding; don't silently swap in a source with different coverage."
+)
+
+driver_gov_and_ids = driver.drop(columns=ECON_COLS)
+raw_econ = raw[["country_code", "year"] + ECON_COLS]
+merged_factors = driver_gov_and_ids.merge(raw_econ, on=["country_code", "year"], how="left")
+
+# Restore driver_history.csv's original column order (cosmetic, keeps panel.csv diffing cleanly comparable to the prior version)
+merged_factors = merged_factors[list(driver.columns)]
+
+country_years = list(zip(merged_factors["country_code"], merged_factors["year"]))
 distress_rows = build_distress_panel(country_years)
 distress = pd.DataFrame(distress_rows)
 
-panel = driver.merge(distress, on=["country_code", "year"], how="left")
+panel = merged_factors.merge(distress, on=["country_code", "year"], how="left")
 
-assert len(panel) == len(driver), "merge changed row count -- distress_events has a (country, year) not in the panel"
+assert len(panel) == len(merged_factors), "merge changed row count -- distress_events has a (country, year) not in the panel"
 assert panel["sovereign_default"].isna().sum() == 0, "unmatched country-years in sovereign_default"
 
 panel.to_csv("panel.csv", index=False)
