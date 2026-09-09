@@ -19,6 +19,7 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import plotly.graph_objects as go
+import statsmodels.api as sm
 
 st.set_page_config(page_title="EM Macro & Geopolitical Risk Engine", page_icon="📉", layout="wide")
 
@@ -235,6 +236,38 @@ def load_phase3():
 phase1_panel, phase1_events = load_phase1()
 phase2_results, phase2_shocks, phase2_fx = load_phase2()
 phase3_panel, phase3_backtest, phase3_coefs, phase3_drivers = load_phase3()
+
+
+# ============================================================
+# LIVE PHASE 1 MODEL FIT -- refits the exact same primary specification as
+# model/distress_model.py (same factor list, same complete-case handling,
+# same country-clustered SEs) directly in the app, rather than keeping a
+# separate hardcoded coefficient table that could silently drift from the
+# validated model. This is also what makes real risk attribution possible
+# below: the same fitted result object drives both the coefficient table
+# and the per-country contribution breakdown.
+# ============================================================
+PRIMARY_FACTOR_COLS = [
+    "current_account_pct_gdp", "reserves_months_imports",
+    "gdp_growth", "inflation", "currency_depreciation_pct",
+    "political_stability", "government_effectiveness", "rule_of_law",
+    "regulatory_quality", "control_of_corruption",
+]
+
+
+@st.cache_resource
+def fit_phase1_model(panel_df, outcome_col):
+    complete = panel_df.dropna(subset=PRIMARY_FACTOR_COLS + [outcome_col])
+    X = sm.add_constant(complete[PRIMARY_FACTOR_COLS])
+    y = complete[outcome_col]
+    result = sm.Logit(y, X).fit(
+        disp=0, cov_type="cluster", cov_kwds={"groups": complete["country_code"]},
+    )
+    return result, complete
+
+
+phase1_result, phase1_complete = fit_phase1_model(phase1_panel, "imf_program_entry")
+phase1_factor_means = phase1_complete[PRIMARY_FACTOR_COLS].mean()
 
 
 # ============================================================
@@ -543,22 +576,105 @@ with tab2:
     if events_here.empty:
         st.caption(f"No real distress event recorded for {COUNTRIES.get(sel_country, sel_country)} in this panel.")
 
+    # ============================================================
+    # RISK ATTRIBUTION -- real decomposition of the fitted model's own log-odds
+    # for this country's most recent panel year, not a separately-invented
+    # "why" narrative. contribution_i = coef_i * (this country's value_i -
+    # the sample mean of factor i across all complete-case observations) --
+    # standard logistic-regression decomposition against a reference point,
+    # computed from phase1_result (the exact same live-fitted model behind
+    # the coefficient table below), not a hardcoded explanation.
+    # ============================================================
+    st.markdown("#### Risk attribution — why the model says what it says")
+    country_latest = country_data.dropna(subset=PRIMARY_FACTOR_COLS).sort_values("year")
+    if country_latest.empty:
+        st.caption(f"{COUNTRIES.get(sel_country, sel_country)} has no panel year with complete data across all 10 primary factors, so no attribution can be computed for it.")
+    else:
+        latest_row = country_latest.iloc[-1]
+        latest_year = int(latest_row["year"])
+        x_vals = latest_row[PRIMARY_FACTOR_COLS]
+        contributions = phase1_result.params[PRIMARY_FACTOR_COLS] * (x_vals - phase1_factor_means)
+        baseline_log_odds = phase1_result.params["const"] + (phase1_result.params[PRIMARY_FACTOR_COLS] * phase1_factor_means).sum()
+        predicted_log_odds = phase1_result.params["const"] + (phase1_result.params[PRIMARY_FACTOR_COLS] * x_vals).sum()
+        predicted_prob = 1 / (1 + np.exp(-predicted_log_odds))
+        avg_prob = 1 / (1 + np.exp(-baseline_log_odds))
+
+        contrib_df = contributions.sort_values().reset_index()
+        contrib_df.columns = ["Factor", "Contribution"]
+        bar_colors = [BAD if v > 0 else GOOD for v in contrib_df["Contribution"]]
+        fig_attr = go.Figure(go.Bar(
+            x=contrib_df["Contribution"], y=contrib_df["Factor"], orientation="h",
+            marker_color=bar_colors,
+        ))
+        fig_attr.update_layout(
+            title=f"{COUNTRIES.get(sel_country, sel_country)} ({latest_year}) — log-odds contribution vs. the sample-average country",
+            xaxis_title="Contribution to log-odds (imf_program_entry)",
+        )
+        st.plotly_chart(style_chart(fig_attr, height=340), use_container_width=True)
+
+        m1, m2 = st.columns(2)
+        with m1:
+            st.markdown(f'<div class="card"><div class="stat-num">{predicted_prob:.1%}</div>'
+                         f'<div class="stat-label">Model-implied probability, {COUNTRIES.get(sel_country, sel_country)} {latest_year}</div></div>', unsafe_allow_html=True)
+        with m2:
+            st.markdown(f'<div class="card"><div class="stat-num">{avg_prob:.1%}</div>'
+                         f'<div class="stat-label">Implied probability for the sample-average country (reference point)</div></div>', unsafe_allow_html=True)
+        st.caption(
+            "Red bars push the log-odds up (toward IMF program entry) relative to the average country in this "
+            "panel; green bars push it down. This is a decomposition of the model's own fitted coefficients "
+            "against real data for this country-year, not a separate causal claim — a factor pushing the score "
+            "up is not proof it caused distress, only that it differs from this panel's average in the direction "
+            "the fitted model associates with entry."
+        )
+
+    # ============================================================
+    # TRANSMISSION CHANNELS -- real trade/FDI/reserves exposure for this
+    # country, from raw_panel.csv (fetched for Phase 3, unused elsewhere in
+    # this app until now). Shows real levels only -- no invented weights or
+    # an aggregated "exposure score" beyond what the data actually measures.
+    # ============================================================
+    st.markdown("#### Economic transmission channels")
+    st.markdown(
+        f'<p style="color:{TEXT_MUTED};font-size:0.9rem;">The real channels through which external shocks reach '
+        f'this economy — not the risk model itself, but the structural exposures that give its factors somewhere '
+        f'to come from.</p>', unsafe_allow_html=True,
+    )
+    chan_data = phase3_panel[phase3_panel["country_code"] == sel_country].sort_values("year")
+    chan_cols = ["exports_pct_gdp", "imports_pct_gdp", "fdi_net_inflows_pct_gdp", "reserves_months_imports"]
+    chan_latest = chan_data.dropna(subset=chan_cols, how="all").tail(1)
+    if chan_latest.empty:
+        st.caption(f"No real trade/FDI data available for {COUNTRIES.get(sel_country, sel_country)} in this panel.")
+    else:
+        row = chan_latest.iloc[0]
+        chan_year = int(row["year"])
+        trade_openness = (row["exports_pct_gdp"] or 0) + (row["imports_pct_gdp"] or 0)
+        ch_cols = st.columns(4)
+        chan_stats = [
+            (f"{trade_openness:.0f}%" if pd.notna(trade_openness) else "N/A", "Trade openness (exports + imports, % GDP)"),
+            (f"{row['fdi_net_inflows_pct_gdp']:.1f}%" if pd.notna(row["fdi_net_inflows_pct_gdp"]) else "N/A", "Net FDI inflows (% GDP)"),
+            (f"{row['reserves_months_imports']:.1f}mo" if pd.notna(row["reserves_months_imports"]) else "N/A", "Reserves cover (months of imports)"),
+            (f"{row['current_account_pct_gdp']:.1f}%" if pd.notna(row["current_account_pct_gdp"]) else "N/A", "Current account balance (% GDP)"),
+        ]
+        for col, (num, label) in zip(ch_cols, chan_stats):
+            with col:
+                st.markdown(f'<div class="card"><div class="stat-num" style="font-size:1.4rem;">{num}</div><div class="stat-label">{label}</div></div>', unsafe_allow_html=True)
+        st.caption(f"Real {chan_year} values from World Bank WDI (via this project's own fetched raw_panel.csv). High trade openness and thin reserves cover are the classic channels through which a geopolitical shock (e.g. a commodity-price spike or a sanctions regime) reaches the macro factors the model above actually uses.")
+
     st.markdown("#### Model coefficients (primary specification, `imf_program_entry`)")
-    coef_data = pd.DataFrame([
-        {"Factor": "current_account_pct_gdp", "Coefficient": -0.008, "p-value": 0.568, "Significant (5%)": "No"},
-        {"Factor": "reserves_months_imports", "Coefficient": 0.037, "p-value": 0.073, "Significant (5%)": "No"},
-        {"Factor": "gdp_growth", "Coefficient": -0.039, "p-value": 0.010, "Significant (5%)": "Yes"},
-        {"Factor": "inflation", "Coefficient": -0.015, "p-value": 0.373, "Significant (5%)": "No"},
-        {"Factor": "currency_depreciation_pct", "Coefficient": -0.010, "p-value": 0.662, "Significant (5%)": "No"},
-        {"Factor": "political_stability", "Coefficient": 0.073, "p-value": 0.000, "Significant (5%)": "Yes"},
-        {"Factor": "government_effectiveness", "Coefficient": -0.007, "p-value": 0.914, "Significant (5%)": "No"},
-        {"Factor": "rule_of_law", "Coefficient": -0.098, "p-value": 0.057, "Significant (5%)": "No"},
-        {"Factor": "regulatory_quality", "Coefficient": 0.044, "p-value": 0.250, "Significant (5%)": "No"},
-        {"Factor": "control_of_corruption", "Coefficient": 0.038, "p-value": 0.189, "Significant (5%)": "No"},
-    ])
+    coef_data = pd.DataFrame({
+        "Factor": PRIMARY_FACTOR_COLS,
+        "Coefficient": [phase1_result.params[c] for c in PRIMARY_FACTOR_COLS],
+        "p-value": [phase1_result.pvalues[c] for c in PRIMARY_FACTOR_COLS],
+    })
+    coef_data["Significant (5%)"] = coef_data["p-value"].apply(lambda p: "Yes" if p < 0.05 else "No")
+    coef_data["Coefficient"] = coef_data["Coefficient"].round(4)
+    coef_data["p-value"] = coef_data["p-value"].round(3)
     st.dataframe(coef_data, use_container_width=True, hide_index=True)
     st.caption(
-        "355 observations, 12 of 15 real imf_program_entry events retained. Independently cross-validated in R "
+        f"Live-fitted in this app on every load ({len(phase1_complete)} complete-case observations, "
+        f"{int(phase1_complete['imf_program_entry'].sum())} of 15 real imf_program_entry events retained) — "
+        "not a static, hand-copied table, so this can never silently drift from the model actually producing "
+        "the numbers above. Independently cross-validated in R "
         "(glm + cluster-robust SEs) — matches almost to the decimal (e.g. political_stability: 0.0734 in both "
         "Python and R). Full model output and the debt_to_gdp robustness check in model/distress_model.py."
     )
@@ -686,9 +802,40 @@ with tab4:
     p_oil = phase3_coefs.set_index("predictor").loc["oil_pct_change", "p_value"]
     p_rate = phase3_coefs.set_index("predictor").loc["rate_change", "p_value"]
 
+    # ============================================================
+    # NAMED SCENARIO PRESETS -- documented, illustrative shock magnitudes
+    # (not statistically fitted, and not claimed to be), applied through the
+    # model's own real fitted oil/rate coefficients above. The manual
+    # sliders below still work for any other magnitude; presets just set
+    # them to a defensible starting point instead of leaving the user to
+    # guess a "reasonable" shock size themselves.
+    # ============================================================
+    SCENARIO_PRESETS = {
+        "Baseline — no shock": {"oil": 0, "rate": 0.0},
+        "Escalation — oil +30%, Fed +150bps": {"oil": 30, "rate": 1.5},
+        "De-escalation — oil −20%, Fed −50bps": {"oil": -20, "rate": -0.5},
+        "Severe tail-risk — oil +60%, Fed +300bps": {"oil": 60, "rate": 3.0},
+    }
+
+    def _apply_scenario_preset():
+        preset = SCENARIO_PRESETS[st.session_state.p3_scenario_select]
+        st.session_state.oil_shock_slider = preset["oil"]
+        st.session_state.rate_shock_slider = preset["rate"]
+
+    st.markdown("#### Scenario presets")
+    st.caption(
+        "Documented, illustrative shock sizes chosen to span a plausible range — not statistically fitted "
+        "magnitudes, and not claimed to be. Applied through the model's real, fitted coefficients below. "
+        "Pick a preset or use the sliders directly for any other magnitude."
+    )
+    st.selectbox(
+        "Scenario", list(SCENARIO_PRESETS.keys()),
+        key="p3_scenario_select", on_change=_apply_scenario_preset,
+    )
+
     sc1, sc2 = st.columns(2)
     with sc1:
-        oil_shock = st.slider("Oil price shock (%)", -50, 50, 0, step=5, key="oil_shock_slider")
+        oil_shock = st.slider("Oil price shock (%)", -60, 60, 0, step=5, key="oil_shock_slider")
     with sc2:
         rate_shock = st.slider("US short-rate shock (pp)", -3.0, 3.0, 0.0, step=0.25, key="rate_shock_slider")
 
@@ -759,6 +906,38 @@ with tab5:
         'not buried in a separate document. Where a result is not statistically significant, or a sample is too '
         'small to generalize from, that is stated plainly next to the number, not after it.</div>',
         unsafe_allow_html=True,
+    )
+
+    # ============================================================
+    # DATA PROVENANCE -- consolidates the sources already cited (scattered
+    # across the per-phase expanders below) into one reference table. Every
+    # row here is a real source already fetched and used elsewhere in this
+    # app -- nothing added or implied that isn't already live.
+    # ============================================================
+    st.markdown("#### Data sources")
+    provenance = pd.DataFrame([
+        {"Source": "World Bank WDI", "Used for": "Macro indicators (current account, reserves, GDP growth, inflation, FX depreciation, debt/GDP, trade, FDI)",
+         "Frequency": "Annual", "Coverage": "2010–2024", "Fetched via": "MENASA Risk Monitor's pipeline (shared, not re-fetched)"},
+        {"Source": "World Bank Worldwide Governance Indicators", "Used for": "Political stability, government effectiveness, rule of law, regulatory quality, control of corruption",
+         "Frequency": "Annual", "Coverage": "2010–2024", "Fetched via": "MENASA Risk Monitor's pipeline (shared, not re-fetched)"},
+        {"Source": "IMF Executive Board records (via this project's own sourced dataset)", "Used for": "sovereign_default / imf_program_entry outcome events",
+         "Frequency": "Event-dated", "Coverage": "2010–2024, 17 real events", "Fetched via": "data/distress_events.py — cited individually, not bulk-downloaded"},
+        {"Source": "GDELT 2.0 Doc API", "Used for": "Media tone/volume around 5 geopolitical shock events",
+         "Frequency": "Daily", "Coverage": "Feb 2015+ (GDELT's own real coverage start)", "Fetched via": "GitHub Actions (shock-module/fetch-shocks.yml)"},
+        {"Source": "yfinance — FX pairs", "Used for": "Real historical USD exchange rates around each shock event",
+         "Frequency": "Daily", "Coverage": "±30 days per event", "Fetched via": "GitHub Actions (shock-module/fetch-fx.yml)"},
+        {"Source": "yfinance — CL=F (WTI crude)", "Used for": "Oil-price shock driver, Phase 3 stress test",
+         "Frequency": "Annual average", "Coverage": "2010–2024", "Fetched via": "GitHub Actions (forecast-module/fetch_shock_drivers.py)"},
+        {"Source": "yfinance — ^IRX (13-week T-bill)", "Used for": "US short-rate proxy, Phase 3 stress test",
+         "Frequency": "Annual average", "Coverage": "2010–2024", "Fetched via": "GitHub Actions (forecast-module/fetch_shock_drivers.py)"},
+    ])
+    st.dataframe(provenance, use_container_width=True, hide_index=True)
+    st.caption(
+        "Frankfurter (ECB rates) and FRED's fredgraph.csv were both tried first for FX and the US rate proxy "
+        "respectively, and both confirmed as genuine structural dead ends (Frankfurter doesn't cover 5 of this "
+        "project's currencies; FRED's export endpoint times out consistently across repeated real attempts from "
+        "GitHub Actions) before switching to yfinance — see the \"three real bugs\" section below and each "
+        "module's own README for the full diagnostic trail."
     )
 
     with st.expander("Phase 1 — Sovereign Distress Model: data sources, method, limitations", expanded=False):
