@@ -1,0 +1,50 @@
+[
+  {
+    "country_code": "LBN",
+    "label": "Lebanon sovereign default",
+    "event_date": "2020-03-09",
+    "gdelt_avg_tone_post": -3.2371375000000002,
+    "gdelt_peak_volume_post": null,
+    "fx_pct_change": -0.3666222006829261
+  },
+  {
+    "country_code": "LKA",
+    "label": "Sri Lanka pre-emptive default",
+    "event_date": "2022-04-12",
+    "gdelt_avg_tone_post": -2.099475,
+    "gdelt_peak_volume_post": 0.0419,
+    "fx_pct_change": 10.104687342931188
+  },
+  {
+    "country_code": "AFG",
+    "label": "Fall of Kabul / Taliban takeover",
+    "event_date": "2021-08-15",
+    "gdelt_avg_tone_post": -2.5171375000000005,
+    "gdelt_peak_volume_post": 0.0807,
+    "fx_pct_change": 6.672921759364433
+  },
+  {
+    "country_code": "EGY",
+    "label": "Egyptian pound devaluation",
+    "event_date": "2022-03-21",
+    "gdelt_avg_tone_post": -0.30973749999999994,
+    "gdelt_peak_volume_post": null,
+    "fx_pct_change": 15.61091236033843
+  },
+  {
+    "country_code": "PAK",
+    "label": "Pakistan Stand-By Arrangement approved",
+    "event_date": "2023-07-12",
+    "gdelt_avg_tone_post": -0.7742875,
+    "gdelt_peak_volume_post": 0.5789,
+    "fx_pct_change": 2.553132728315023
+  },
+  {
+    "country_code": "SYR",
+    "label": "Syria civil war escalation (approximate marker)",
+    "event_date": "2012-01-01",
+    "gdelt_avg_tone_post": null,
+    "gdelt_peak_volume_post": null,
+    "fx_pct_change": null
+  }
+]
