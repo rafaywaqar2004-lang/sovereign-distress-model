@@ -23,11 +23,21 @@ DIRECTION = {
     "gdp_growth": False,                    # more growth = less risk
     "inflation": True,                      # more inflation = more risk
     "currency_depreciation_pct": True,      # more depreciation = more risk
-    "political_stability": False,           # WGI: higher percentile = more stable = less risk
-    "government_effectiveness": False,
-    "rule_of_law": False,
-    "regulatory_quality": False,
-    "control_of_corruption": False,
+    # These 5 columns are named after governance QUALITY but this dataset's
+    # actual values run the opposite way -- verified directly against raw
+    # data: Yemen/Syria (objectively poor governance) score ~90-100, Qatar/
+    # Israel (relatively strong governance) score ~10-20. Confirmed against
+    # Phase 1's own already-validated model too: its fitted coefficient on
+    # political_stability is POSITIVE (0.0691, p<0.0001), i.e. a higher raw
+    # value here genuinely increases predicted distress risk. So HIGHER =
+    # MORE risk for all 5 -- caught during sub-index validation (see
+    # validate_sub_indices.py), not assumed the way an earlier version of
+    # this dict had it (backwards, direction=False).
+    "political_stability": True,
+    "government_effectiveness": True,
+    "rule_of_law": True,
+    "regulatory_quality": True,
+    "control_of_corruption": True,
     "debt_to_gdp": True,
     # Extended indicators (used once fetched/merged)
     "external_debt_pct_gni": True,

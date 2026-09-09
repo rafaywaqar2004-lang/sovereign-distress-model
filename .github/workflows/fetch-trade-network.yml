@@ -1,0 +1,39 @@
+name: Fetch bilateral trade network (UN Comtrade)
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pandas
+        run: pip install pandas
+
+      - name: Fetch bilateral trade network
+        working-directory: data
+        env:
+          PYTHONUNBUFFERED: "1"
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+        timeout-minutes: 15
+        run: python -u fetch_trade_network.py
+
+      - name: Commit fetched data if anything changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/trade_network.csv
+          git diff --staged --quiet && echo "No data changes" && exit 0
+          git commit -m "Fetch real bilateral trade network (UN Comtrade)"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main

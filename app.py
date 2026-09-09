@@ -458,6 +458,25 @@ def load_risk_architecture():
 risk_arch_raw_panel, risk_arch_latest, risk_arch_sub_index_df, risk_arch_changed_df, risk_arch_has_extended = load_risk_architecture()
 
 
+# ============================================================
+# SUB-INDEX VALIDATION -- real cross-sectional check of whether each
+# sub-index's current standing associates with real distress-event history.
+# Computed live (not hardcoded) so it can never silently drift from the
+# actual data. See validate_sub_indices.py's own docstring for the real,
+# disclosed limitation: this is cross-sectional (ever-distressed vs. never),
+# not a genuine panel-based validation the way Phase 1's OOS backtest is.
+# ============================================================
+from validate_sub_indices import validate as validate_sub_indices  # noqa: E402
+
+
+@st.cache_data
+def load_sub_index_validation(panel_df):
+    return validate_sub_indices(panel_df)[0]
+
+
+sub_index_validation = load_sub_index_validation(risk_arch_raw_panel) if risk_arch_has_extended else None
+
+
 @st.cache_data
 def load_global_conditions():
     path = os.path.join(HERE, "forecast-module", "global_conditions.json")
@@ -468,6 +487,24 @@ def load_global_conditions():
 
 
 global_conditions = load_global_conditions()
+
+
+# ============================================================
+# TRADE NETWORK / SPILLOVER -- real UN Comtrade bilateral trade data, once
+# fetched (data/fetch_trade_network.py, gated on a real COMTRADE_API_KEY
+# repo secret). Degrades to "not yet available" -- never fabricated -- if
+# the fetch hasn't run yet.
+# ============================================================
+from trade_network import load_trade_network, trade_concentration, spillover_exposure  # noqa: E402
+
+
+@st.cache_data
+def load_trade_network_cached():
+    return load_trade_network(path=os.path.join(HERE, "data", "trade_network.csv"))
+
+
+trade_net_df = load_trade_network_cached()
+trade_net_countries = sorted(set(trade_net_df["reporter_code"])) if trade_net_df is not None else []
 
 
 # ============================================================
@@ -1100,6 +1137,44 @@ with tab3:
         "Full methodology in shock-module/README.md."
     )
 
+    st.markdown("#### Trade spillover network")
+    if trade_net_df is None:
+        st.markdown(
+            f'<div class="honest-box"><span class="label">Not yet available — real fetch pending credentials</span>'
+            f'A real bilateral trade network from UN Comtrade (data/fetch_trade_network.py) is built and ready to '
+            f'run, gated on a free COMTRADE_API_KEY not yet registered for this project. No invented trade weights '
+            f'are shown in the meantime — see Methodology &amp; Validation for exactly what this will show once live.</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            f'<p style="color:{TEXT_MUTED};">Real UN Comtrade bilateral trade data: if the selected country '
+            f'experiences a shock, which other tracked countries are most exposed through real trade — either as '
+            f'an export market that shuts (import exposure) or as a buyer that stops purchasing (export exposure)?</p>',
+            unsafe_allow_html=True,
+        )
+        sel_shock_country = st.selectbox(
+            "Shocked country", trade_net_countries,
+            format_func=lambda c: COUNTRIES.get(c, c), key="trade_net_country",
+        )
+        spill = spillover_exposure(trade_net_df, sel_shock_country, trade_net_countries)
+        if spill.empty:
+            st.caption(f"No real trade linkage found between {COUNTRIES.get(sel_shock_country, sel_shock_country)} and any other tracked country in this data.")
+        else:
+            top = spill.head(10).copy()
+            top["country"] = top["country_code"].map(COUNTRIES)
+            fig_spill = go.Figure()
+            fig_spill.add_trace(go.Bar(y=top["country"], x=top["import_exposure_pct"], name="Import exposure (%)", orientation="h", marker_color=ACCENT))
+            fig_spill.add_trace(go.Bar(y=top["country"], x=top["export_exposure_pct"], name="Export exposure (%)", orientation="h", marker_color=ACCENT2))
+            fig_spill.update_layout(title=f"Real trade exposure to a {COUNTRIES.get(sel_shock_country, sel_shock_country)} shock", barmode="group", xaxis_title="% of that country's total trade")
+            st.plotly_chart(style_chart(fig_spill), use_container_width=True)
+            st.caption(
+                "Import exposure = % of the listed country's real total imports that come from the shocked "
+                "country (an export-market shock). Export exposure = % of its real total exports that go to the "
+                "shocked country (an import-demand shock). Both are real, computed from actual bilateral trade "
+                "values — never combined into one invented composite number."
+            )
+
 with tab4:
     st.markdown('<div class="section-title">Forecast &amp; Stress Test</div>', unsafe_allow_html=True)
     st.markdown(
@@ -1511,15 +1586,22 @@ with tab5:
             "sample: economic factors alone reach AUC 0.711, governance factors alone reach AUC 0.763, and the "
             "combined 10-factor model reaches AUC 0.843 — a real +0.079 lift over the better single-dimension "
             "model, genuine evidence combining both real dimensions adds explanatory value.\n\n"
+            "**Sub-index validation** (`model/validate_sub_indices.py`) — the 6 sub-indices below are diagnostic, "
+            "not predictive (Phase 1's fitted logit remains the only real predictive model here), but they were "
+            "checked anyway: does a sub-index's current standing associate with whether a country has EVER had a "
+            "real distress event? A genuinely CROSS-SECTIONAL check only (34 countries, one snapshot each), not a "
+            "substitute for Phase 1's real panel-based, temporally-validated backtest. This check caught a real "
+            "bug of its own during development — see the note below.\n\n"
             "**Peer-relative percentiles and \"what changed\"** (`model/peer_comparison.py`): each country's "
             "latest real value on every factor, ranked against the other 33 tracked countries (direction-adjusted "
             "so a higher percentile always means more relative risk), plus real year-over-year deltas — pure "
             "computation on data already in hand.\n\n"
-            "**Investigated and deliberately NOT added, with the real reason:**\n"
-            "- *Bilateral trade / spillover network:* UN Comtrade has a real, working API, but it requires a free "
-            "subscription key nobody has registered for this project (the companion project's own Trade "
-            "Vulnerability Index hit the identical gap). Building a network on invented trade weights instead "
-            "would be fabrication — declined rather than faked.\n"
+            "**Investigated and either in progress or deliberately NOT added, with the real reason:**\n"
+            "- *Bilateral trade / spillover network:* UN Comtrade has a real, working API — in progress, gated on "
+            "a free subscription key being registered for this project (`data/fetch_trade_network.py` and the "
+            "network computation are built; the fetch runs once the key is added as a repo secret). Building a "
+            "network on invented trade weights instead would be fabrication — this is a real fetch pending "
+            "credentials, not an approximation.\n"
             "- *Per-country sovereign CDS / EMBI / bond yields:* confirmed absent from the entire World Bank WDI "
             "catalog and IMF's free public APIs. Real data for most of these 34 economies exists only behind "
             "commercial terminals. The global EM bond ETF proxy above is the closest real substitute available.\n"
@@ -1530,6 +1612,30 @@ with tab5:
             "registration nobody has completed for this project (same gap already disclosed in the companion "
             "project). Phase 2's 5-event GDELT study remains the real geopolitical evidence this project has."
         )
+
+        if sub_index_validation is not None:
+            st.markdown("**Sub-index validation results (live-computed, cross-sectional):**")
+            val_table = sub_index_validation.copy()
+            val_table.columns = ["Sub-index", "N countries", "N ever-distressed", "AUC (raw)", "AUC (distress direction)"]
+            st.dataframe(
+                val_table.style.format({"AUC (raw)": "{:.3f}", "AUC (distress direction)": "{:.3f}"}),
+                use_container_width=True, hide_index=True,
+            )
+            st.markdown(
+                '<div class="honest-box"><span class="label">Real bug caught by this validation, since fixed</span>'
+                'The first version of the 5 governance-named factors\' direction assumption in the new sub-index '
+                'code was backwards — they read as quality scores by name (political_stability, rule_of_law, etc.) '
+                'but this dataset\'s actual values run the opposite way (Yemen/Syria ~90–100, Qatar/Israel ~10–20 — '
+                'higher means MORE instability, confirmed against Phase 1\'s own already-validated model, whose '
+                'fitted coefficient on political_stability is positive). Institutional_risk\'s AUC against real '
+                'distress history was 0.24 (inverted) before the fix, 0.76 (correctly directed) after — caught by '
+                'this exact validation, not assumed correct.</div>', unsafe_allow_html=True,
+            )
+            st.caption(
+                "AUC 0.5 = no real association. Fiscal/sovereign and buffers show little to none here — a real, "
+                "disclosed result, not smoothed over. Banking, macro, and institutional show a real, meaningful "
+                "association. External vulnerability is weak-to-moderate."
+            )
 
     st.markdown("#### Data-quality issues identified and corrected during development")
     bug_cols = st.columns(3)
