@@ -796,35 +796,35 @@ with tab2:
     st.markdown(
         f'<p style="color:{TEXT_MUTED};">A panel logistic regression predicting two real, sourced outcomes: '
         f'sovereign default and formal IMF program entry. Primary specification excludes <code>debt_to_gdp</code> '
-        f'deliberately (see the honest note below) — trained on 355 observations, 14 of 17 real events retained.</p>',
+        f'deliberately — trained on 355 observations, 14 of 17 real events retained.</p>',
         unsafe_allow_html=True,
     )
 
-    st.markdown(
-        '<div class="honest-box"><span class="label">Data limitation and specification note</span>'
-        '<code>debt_to_gdp</code> is non-missing in only 91 of 507 panel rows. Requiring complete cases across '
-        'all 11 factors, including it, collapsed the usable sample to 77 rows and dropped all but 1 of the 17 real '
-        'distress events with it — the country-years missing debt data are disproportionately the same '
-        'country-years under genuine fiscal strain (Lebanon stopped publishing fiscal data entirely during its '
-        'crisis). Fixed by excluding it from the primary model and testing it separately as a robustness check.</div>',
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        '<div class="honest-box"><span class="label">Data limitation, since resolved</span>'
-        'A later audit found that the 5 economic factors this model is fit on (<code>current_account_pct_gdp</code>, '
-        '<code>reserves_months_imports</code>, <code>gdp_growth</code>, <code>inflation</code>, '
-        '<code>currency_depreciation_pct</code>) were the same 0–100 normalized risk sub-scores whose mislabeling was '
-        'already caught and fixed for Phase 3\'s forecasting model, but missed here at first. Fixed: the primary '
-        'specification now uses Phase 3\'s real raw values for these 5 factors (e.g. Pakistan\'s 2023 current account '
-        'is correctly <b>-0.3% of GDP</b>, not 48.3), while keeping the <b>governance</b> factors (political_stability, '
-        'rule_of_law, etc.) on their real 0–100 World Bank WGI percentile scale, which was already correct. Refit and '
-        're-validated in R after the fix — see the coefficient table below. The refit changed which factors are '
-        'significant: <code>reserves_months_imports</code> is now significant (p&lt;0.001, wasn\'t before) and '
-        '<code>gdp_growth</code> no longer is (was significant with the old mislabeled data) — a real, honest change '
-        'in the result, not smoothed over.</div>',
-        unsafe_allow_html=True,
-    )
+    with st.expander("Data limitations and specification notes", expanded=False):
+        st.markdown(
+            '<div class="honest-box"><span class="label">Data limitation and specification note</span>'
+            '<code>debt_to_gdp</code> is non-missing in only 91 of 507 panel rows. Requiring complete cases across '
+            'all 11 factors, including it, collapsed the usable sample to 77 rows and dropped all but 1 of the 17 real '
+            'distress events with it — the country-years missing debt data are disproportionately the same '
+            'country-years under genuine fiscal strain (Lebanon stopped publishing fiscal data entirely during its '
+            'crisis). Fixed by excluding it from the primary model and testing it separately as a robustness check.</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            '<div class="honest-box"><span class="label">Data limitation, since resolved</span>'
+            'A later audit found that the 5 economic factors this model is fit on (<code>current_account_pct_gdp</code>, '
+            '<code>reserves_months_imports</code>, <code>gdp_growth</code>, <code>inflation</code>, '
+            '<code>currency_depreciation_pct</code>) were the same 0–100 normalized risk sub-scores whose mislabeling was '
+            'already caught and fixed for Phase 3\'s forecasting model, but missed here at first. Fixed: the primary '
+            'specification now uses Phase 3\'s real raw values for these 5 factors (e.g. Pakistan\'s 2023 current account '
+            'is correctly <b>-0.3% of GDP</b>, not 48.3), while keeping the <b>governance</b> factors (political_stability, '
+            'rule_of_law, etc.) on their real 0–100 World Bank WGI percentile scale, which was already correct. Refit and '
+            're-validated in R after the fix — see the coefficient table in Methodology &amp; Validation. The refit changed '
+            'which factors are significant: <code>reserves_months_imports</code> is now significant (p&lt;0.001, wasn\'t '
+            'before) and <code>gdp_growth</code> no longer is (was significant with the old mislabeled data) — a real, '
+            'honest change in the result, not smoothed over.</div>',
+            unsafe_allow_html=True,
+        )
 
     st.markdown("#### Real distress events (2010–2024)")
     ev_display = phase1_events.copy()
