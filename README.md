@@ -99,6 +99,20 @@ Real event study pairing GDELT media-coverage data against real historical
 FX rates for 5 precisely-dated shocks. Full writeup, including a genuinely
 counter-intuitive finding about exchange-rate regimes, in `shock-module/README.md`.
 
-## Phase 3 (not yet started)
+## Phase 3: macro forecasting + stress testing — done
 
-Macro forecasting + user-driven stress testing.
+Real panel AR(1) forecasting for GDP growth and inflation (a real bug
+caught along the way: an early version accidentally forecasted normalized
+risk-rank scores instead of actual economic values), plus a stress-test
+layer letting a real oil-price or US-rate shock flow through the model's
+own fitted coefficients. Full writeup, including the honest result that
+the shock coefficients aren't statistically significant here, in
+`forecast-module/README.md`.
+
+## All 3 phases complete
+
+The EM Macro & Geopolitical Risk Engine is now fully built: sovereign
+distress prediction, a real geopolitical-shock event study, and macro
+forecasting with stress testing — all independently validated in R,
+backed by real SQLite databases, and built entirely on real or
+directly-fetched data.

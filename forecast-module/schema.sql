@@ -18,3 +18,16 @@ CREATE TABLE forecast_backtest_2024 (
     abs_error REAL,
     PRIMARY KEY (country_code, variable)
 );
+
+CREATE TABLE shock_drivers (
+    year INTEGER PRIMARY KEY,
+    oil_annual_avg_usd REAL,
+    us_short_rate_annual_avg_pct REAL
+);
+
+CREATE TABLE stress_test_coefficients (
+    predictor TEXT PRIMARY KEY,
+    coefficient REAL NOT NULL,
+    p_value REAL NOT NULL,
+    significant_at_5pct INTEGER NOT NULL CHECK (significant_at_5pct IN (0, 1))
+);
