@@ -25,41 +25,45 @@ st.set_page_config(page_title="EM Macro & Geopolitical Risk Engine", page_icon="
 HERE = os.path.dirname(__file__)
 
 # ============================================================
-# DESIGN SYSTEM -- dark navy/charcoal base per direct user request,
-# replacing the earlier light pass. Keeps the same navy-blue accent
-# family this app has used throughout (from MENASA's own primary),
-# brightened from #2463A5 to #4A90D9 so it actually clears WCAG AA
-# contrast against a near-black ground -- checked with a real luminance
-# calculation, not eyeballed: the original hex cleared only ~3:1 on this
-# background (fails AA's 4.5:1 for text), the brightened version clears
-# 5.8:1. Same reasoning for the gold secondary (B8912E -> D4A94E).
-# Public Sans/Source Serif 4/IBM Plex Mono fonts kept from the light
-# pass -- only the color scheme changed, not the type system.
+# DESIGN SYSTEM -- a distinct visual identity, not a shared palette with
+# this project's two siblings. Direct user feedback: an earlier pass
+# (dark ground borrowed from MENASA, navy accent and Public
+# Sans/Source Serif 4 fonts borrowed from the Gulf Tracker) read as a
+# mashup of both rather than its own thing. This is a "quant terminal"
+# identity instead -- appropriate for a tool whose actual content is
+# live model output and coefficients, not an editorial brief:
+#   - Teal primary + coral secondary, a color family neither sibling
+#     uses (MENASA is near-black+gold, Gulf is cream+navy). Contrast
+#     checked with a real luminance calculation: 7.6:1 and 6.3:1 against
+#     this background, both clear WCAG AA's 4.5:1 for text.
+#   - IBM Plex Sans for headings and body, IBM Plex Mono for data --
+#     no literary serif headline font at all, breaking from the
+#     editorial-brief convention both siblings share.
 # ============================================================
-BG = "#0A0E14"
-SURFACE = "#131A24"
-SURFACE_ALT = "#1A2430"
+BG = "#0A1211"
+SURFACE = "#0F1B19"
+SURFACE_ALT = "#152420"
 BORDER = "rgba(255,255,255,0.10)"
-ACCENT = "#4A90D9"
-ACCENT_DIM = "rgba(74,144,217,0.14)"
-ACCENT2 = "#D4A94E"
-ACCENT2_DIM = "rgba(212,169,78,0.14)"
+ACCENT = "#33B6AF"
+ACCENT_DIM = "rgba(51,182,175,0.14)"
+ACCENT2 = "#E0793E"
+ACCENT2_DIM = "rgba(224,121,62,0.14)"
 TEXT = "#F0EFEA"
-TEXT_MUTED = "#93A0AF"
+TEXT_MUTED = "#93A6A3"
 GOOD = "#34D399"
 WARN = "#FBBF24"
 BAD = "#F87171"
 
 st.markdown(f"""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&family=Source+Serif+4:ital,wght@0,500;0,600;0,700;1,500&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
 
     html, body, [class*="css"] {{
-        font-family: 'Public Sans', -apple-system, sans-serif;
+        font-family: 'IBM Plex Sans', -apple-system, sans-serif;
         -webkit-font-smoothing: antialiased;
     }}
-    h1, h2, h3 {{ font-family: 'Public Sans', sans-serif !important; }}
-    .masthead-title, .section-title {{ font-family: 'Source Serif 4', Georgia, serif !important; }}
+    h1, h2, h3 {{ font-family: 'IBM Plex Sans', sans-serif !important; }}
+    .masthead-title, .section-title {{ font-family: 'IBM Plex Sans', -apple-system, sans-serif !important; }}
 
     /* Streamlit 1.63's actual DOM uses data-testid="stApp"/"stMain", not the
        older ".main" class -- verified by inspecting the real rendered page,
@@ -81,7 +85,7 @@ st.markdown(f"""
         margin-bottom: 0.7rem;
     }}
     .masthead-title {{
-        font-family: 'Source Serif 4', Georgia, serif;
+        font-family: 'IBM Plex Sans', -apple-system, sans-serif;
         font-size: 2.6rem;
         font-weight: 800;
         color: {TEXT};
@@ -152,7 +156,7 @@ st.markdown(f"""
         border-radius: 20px;
         background: {ACCENT_DIM};
         color: {ACCENT};
-        border: 1px solid rgba(74,144,217,0.35);
+        border: 1px solid rgba(51,182,175,0.35);
         margin-bottom: 0.6rem;
     }}
     a {{ color: {ACCENT2}; }}
@@ -172,7 +176,7 @@ def style_chart(fig, height=380):
         height=height,
         plot_bgcolor=SURFACE,
         paper_bgcolor=SURFACE,
-        font=dict(family="Public Sans, sans-serif", color=TEXT_MUTED, size=12),
+        font=dict(family="IBM Plex Sans, sans-serif", color=TEXT_MUTED, size=12),
         margin=dict(l=10, r=10, t=30, b=10),
         xaxis=dict(gridcolor=BORDER, zerolinecolor=BORDER),
         yaxis=dict(gridcolor=BORDER, zerolinecolor=BORDER),
@@ -313,49 +317,87 @@ def _lerp_hex(c1, c2, t):
     return f"rgb({round(r1 + (r2 - r1) * t)},{round(g1 + (g2 - g1) * t)},{round(b1 + (b2 - b1) * t)})"
 
 
-def _event_color(count):
-    if _max_events == 0:
-        return SURFACE_ALT
-    t = count / _max_events
-    return _lerp_hex(SURFACE_ALT, ACCENT, t / 0.5) if t <= 0.5 else _lerp_hex(ACCENT, ACCENT2, (t - 0.5) / 0.5)
+def _event_color(count, max_events, surface_alt, accent, accent2):
+    if max_events == 0:
+        return surface_alt
+    t = count / max_events
+    return _lerp_hex(surface_alt, accent, t / 0.5) if t <= 0.5 else _lerp_hex(accent, accent2, (t - 0.5) / 0.5)
 
 
-_map_fig = go.Figure()
-for feat in _world_geojson["features"]:
-    ne_code = feat["properties"]["ADM0_A3"]
-    name = feat["properties"].get("NAME", ne_code)
-    tracked = ne_code in _events_by_ne_code
-    count = _events_by_ne_code.get(ne_code, 0)
-    fill_color = _event_color(count) if tracked else SURFACE_ALT
-    hover = (
-        f"<b>{name}</b><br>Real distress events (2010–2024): {count}"
-        if tracked else f"<b>{name}</b><br>Outside this project's 34-country panel"
-    )
+_MAX_RING_POINTS = 150  # real perf fix -- see build_coverage_map() docstring
 
-    geom = feat["geometry"]
-    polygons = geom["coordinates"] if geom["type"] == "MultiPolygon" else [geom["coordinates"]]
-    for poly in polygons:
-        ring = poly[0]  # exterior ring only -- interior holes (lakes, enclaves) not rendered, a real simplification
-        lons = [pt[0] for pt in ring]
-        lats = [pt[1] for pt in ring]
-        _map_fig.add_trace(go.Scatter(
+
+def _decimate(ring, max_points=_MAX_RING_POINTS):
+    step = max(1, len(ring) // max_points)
+    return ring[::step]
+
+
+@st.cache_resource
+def build_coverage_map(world_geojson, events_by_ne_code, max_events, bg, surface, surface_alt, border, accent, accent2, text, text_muted):
+    """
+    Built once and cached (st.cache_resource, since a Plotly Figure isn't
+    the kind of plain data st.cache_data hashes well) -- Streamlit reruns
+    the whole script on every interaction anywhere in the app, and this
+    figure was originally built as 732 separate polygon traces (one per
+    country per disjoint landmass) totaling 50,589 points every single
+    rerun, measured directly, not guessed -- e.g. moving a slider on a
+    completely different tab was rebuilding this map from scratch. Two
+    real fixes here: caching, and merging each country's polygon parts
+    into a single trace (Plotly draws multiple disjoint filled shapes in
+    one trace when their coordinate lists are separated by a `None`),
+    cutting 732 traces to 119. Also decimates very large rings -- Russia
+    and the US alone contributed over 13,000 points from countries that
+    barely clip the edge of this map's actual viewport -- to a max of
+    150 points each, a real, disclosed simplification consistent with
+    this already being a non-precision equirectangular projection.
+    """
+    fig = go.Figure()
+    for feat in world_geojson["features"]:
+        ne_code = feat["properties"]["ADM0_A3"]
+        name = feat["properties"].get("NAME", ne_code)
+        tracked = ne_code in events_by_ne_code
+        count = events_by_ne_code.get(ne_code, 0)
+        fill_color = _event_color(count, max_events, surface_alt, accent, accent2) if tracked else surface_alt
+        hover = (
+            f"<b>{name}</b><br>Real distress events (2010–2024): {count}"
+            if tracked else f"<b>{name}</b><br>Outside this project's 34-country panel"
+        )
+
+        geom = feat["geometry"]
+        polygons = geom["coordinates"] if geom["type"] == "MultiPolygon" else [geom["coordinates"]]
+        lons, lats = [], []
+        for poly in polygons:
+            ring = _decimate(poly[0])  # exterior ring only -- interior holes not rendered, a real simplification
+            if lons:
+                lons.append(None)
+                lats.append(None)
+            lons.extend(pt[0] for pt in ring)
+            lats.extend(pt[1] for pt in ring)
+
+        fig.add_trace(go.Scatter(
             x=lons, y=lats, mode="lines", fill="toself",
-            fillcolor=fill_color, line=dict(color=BORDER, width=0.6),
+            fillcolor=fill_color, line=dict(color=border, width=0.6),
             hoveron="fills", hoverinfo="text", text=hover,
             name=name, showlegend=False,
         ))
 
-_map_fig.update_xaxes(range=[-24, 98], visible=False, fixedrange=True)
-_map_fig.update_yaxes(range=[-12, 46], visible=False, fixedrange=True, scaleanchor="x", scaleratio=1)
-_map_fig.update_layout(
-    height=440,
-    margin=dict(l=0, r=0, t=6, b=0),
-    plot_bgcolor=BG,
-    paper_bgcolor="rgba(0,0,0,0)",
-    hoverlabel=dict(bgcolor=SURFACE, font=dict(family="Public Sans, sans-serif", color=TEXT)),
-    font=dict(family="Public Sans, sans-serif", color=TEXT_MUTED, size=12),
+    fig.update_xaxes(range=[-24, 98], visible=False, fixedrange=True)
+    fig.update_yaxes(range=[-12, 46], visible=False, fixedrange=True, scaleanchor="x", scaleratio=1)
+    fig.update_layout(
+        height=440,
+        margin=dict(l=0, r=0, t=6, b=0),
+        plot_bgcolor=bg,
+        paper_bgcolor="rgba(0,0,0,0)",
+        hoverlabel=dict(bgcolor=surface, font=dict(family="IBM Plex Sans, sans-serif", color=text)),
+        font=dict(family="IBM Plex Sans, sans-serif", color=text_muted, size=12),
+    )
+    return fig
+
+
+st.plotly_chart(
+    build_coverage_map(_world_geojson, _events_by_ne_code, _max_events, BG, SURFACE, SURFACE_ALT, BORDER, ACCENT, ACCENT2, TEXT, TEXT_MUTED),
+    use_container_width=True, config={"displayModeBar": False},
 )
-st.plotly_chart(_map_fig, use_container_width=True, config={"displayModeBar": False})
 st.caption(
     "Colored by each country's own real, counted total of sovereign defaults and IMF program entries "
     "in this panel (2010–2024) — not an invented composite risk score. Countries in gray are outside "
@@ -373,11 +415,12 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 with tab1:
-    st.markdown('<div class="section-title">Why three layers, one engine</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">What this tool does</div>', unsafe_allow_html=True)
     st.markdown(
-        "Most student risk-analysis portfolios stop at scoring: assign a country a risk level and move on. "
-        "This project asks three different, connected questions instead, each answered with a genuinely "
-        "separate method, not the same scoring logic relabeled three times:"
+        "A live, interactive risk-analytics engine covering the same 34 MENA and South Asia economies as the "
+        "MENASA Risk Monitor — one panel model predicting sovereign fiscal distress, one event study measuring "
+        "how geopolitical shocks actually move currency markets, and one macro forecasting model you can stress "
+        "test yourself, live, from the sliders on the Macro Forecast tab."
     )
 
     ov_cols = st.columns(3)
@@ -404,15 +447,6 @@ with tab1:
             unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown(
-        '<div class="honest-box"><span class="label">Editorial standard</span>'
-        'Every model on this page discloses its own real limitations in the same place its results are shown — '
-        'not buried in a separate document. Where a result is not statistically significant, or a sample is too '
-        'small to generalize from, that is stated plainly next to the number, not after it. See the '
-        '<b>Methodology &amp; Limitations</b> tab for the full account, including three real bugs caught and fixed '
-        'during development.</div>', unsafe_allow_html=True,
-    )
-
     st.markdown('<div class="section-title">Companion tools</div>', unsafe_allow_html=True)
     link_cols = st.columns(3)
     with link_cols[0]:
@@ -689,6 +723,19 @@ with tab5:
         f'<p style="color:{TEXT_MUTED};">This project was built the same way MENASA and the Gulf Tracker were: '
         f'real data only, every model independently cross-validated in a second language (R), and every real '
         f'problem encountered during development disclosed here rather than quietly fixed and hidden.</p>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "Most student risk-analysis portfolios stop at scoring: assign a country a risk level and move on. "
+        "This project asks three different, connected questions instead, each answered with a genuinely "
+        "separate method, not the same scoring logic relabeled three times — see the Overview tab for what "
+        "each phase actually does, and the expandable sections below for how."
+    )
+    st.markdown(
+        '<div class="honest-box"><span class="label">Editorial standard</span>'
+        'Every model on this page discloses its own real limitations in the same place its results are shown — '
+        'not buried in a separate document. Where a result is not statistically significant, or a sample is too '
+        'small to generalize from, that is stated plainly next to the number, not after it.</div>',
         unsafe_allow_html=True,
     )
 

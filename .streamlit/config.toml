@@ -1,19 +1,23 @@
 [theme]
-# Dark navy/charcoal base per direct user request, keeping the same navy
-# accent family this app has used throughout (from MENASA's own primary),
-# brightened from #2463A5 to #4A90D9 so it clears WCAG AA contrast against
-# a near-black ground (verified: 5.8:1 on the page background, 5.2:1 on
-# card surfaces -- the original hex only cleared ~3:1 on dark). Public
-# Sans/Source Serif 4/IBM Plex Mono fonts kept from the earlier light
-# pass -- only the color scheme changed, not the type system.
+# A distinct visual identity for this tool, not a shared palette with its
+# two siblings. MENASA (near-black + gold, Inter/Newsreader) and the Gulf
+# Tracker (cream + navy, Public Sans/Source Serif 4) already occupy those
+# looks -- this app had drifted into borrowing pieces of both (MENASA's
+# dark ground, Gulf's navy accent and font stack), per direct user
+# feedback that it read as a mashup rather than its own thing. This is a
+# "quant terminal" identity instead: teal primary + coral secondary (a
+# color family neither sibling uses), and the IBM Plex family throughout
+# (Sans for headings/body, Mono for data) with no literary serif heading
+# font -- appropriate for a tool whose actual content is live model
+# output and coefficients, not an editorial brief.
 base = "dark"
-primaryColor = "#4A90D9"
-backgroundColor = "#0A0E14"
-secondaryBackgroundColor = "#131A24"
+primaryColor = "#33B6AF"
+backgroundColor = "#0A1211"
+secondaryBackgroundColor = "#0F1B19"
 textColor = "#F0EFEA"
-borderColor = "#2A3542"
+borderColor = "#233531"
 font = "sans serif"
-headingFont = "serif"
+headingFont = "sans serif"
 codeFont = "monospace"
 baseRadius = "0.4rem"
 showWidgetBorder = true
