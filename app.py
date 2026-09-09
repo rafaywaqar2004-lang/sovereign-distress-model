@@ -435,25 +435,35 @@ with tab1:
         "test yourself, live, from the sliders on the Macro Forecast tab."
     )
 
+    # Real fix -- a direct user report: clicking the "link to heading" icon
+    # next to a phase card's title appeared to do nothing. Not actually
+    # broken: Streamlit auto-attaches a real anchor link to every <h4> it
+    # renders (confirmed by inspecting the live DOM -- each one gets a real
+    # <a href="#slug">), but these three are just card titles inside a
+    # grid, already on screen, not standalone page sections -- so clicking
+    # sets the URL hash with nothing new to scroll to, which reads as
+    # broken. Fixed by using a styled <div> instead of <h4>, so Streamlit
+    # has no heading element here to attach an anchor to at all.
+    card_title_style = f"color:{TEXT};margin:0.3rem 0;font-size:1.15rem;font-weight:700;line-height:1.3;"
     ov_cols = st.columns(3)
     with ov_cols[0]:
         st.markdown(
             f'<div class="card"><span class="phase-pill">Phase 1</span>'
-            f'<h4 style="color:{TEXT};margin:0.3rem 0;">Is this country heading into distress?</h4>'
+            f'<div style="{card_title_style}">Is this country heading into distress?</div>'
             f'<p style="color:{TEXT_MUTED};font-size:0.88rem;line-height:1.6;">A panel logistic regression predicting '
             f'sovereign default and IMF program entry from real macro/governance fundamentals — a probability, '
             f'not a score.</p></div>', unsafe_allow_html=True)
     with ov_cols[1]:
         st.markdown(
             f'<div class="card"><span class="phase-pill">Phase 2</span>'
-            f'<h4 style="color:{TEXT};margin:0.3rem 0;">Did this shock actually move markets?</h4>'
+            f'<div style="{card_title_style}">Did this shock actually move markets?</div>'
             f'<p style="color:{TEXT_MUTED};font-size:0.88rem;line-height:1.6;">A real event study pairing GDELT '
             f'media-coverage data against real historical FX rates for 5 dated geopolitical shocks.</p></div>',
             unsafe_allow_html=True)
     with ov_cols[2]:
         st.markdown(
             f'<div class="card"><span class="phase-pill">Phase 3</span>'
-            f'<h4 style="color:{TEXT};margin:0.3rem 0;">What happens under a shock scenario?</h4>'
+            f'<div style="{card_title_style}">What happens under a shock scenario?</div>'
             f'<p style="color:{TEXT_MUTED};font-size:0.88rem;line-height:1.6;">A panel AR(1) forecasting model with '
             f'an interactive stress-test layer — apply a real oil or rate shock and see the forecast move.</p></div>',
             unsafe_allow_html=True)
