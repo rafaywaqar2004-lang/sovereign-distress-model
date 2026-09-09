@@ -37,9 +37,14 @@ CANDIDATES = {
     "QAT": "QAT",    # iShares MSCI Qatar ETF
     "ARE": "UAE",    # iShares MSCI UAE ETF
     "PAK": "PAK",    # Global X MSCI Pakistan ETF
-    "BGD": "EEME",   # (no direct Bangladesh ETF known; left as a likely-empty probe rather than omitted silently)
-    "LKA": "SLT",    # (no confident real Sri Lanka ETF ticker; probe only)
 }
+# EEME (probed for BGD) and SLT (probed for LKA) were tried and REMOVED:
+# both returned real price data (so yfinance recognizes the tickers), but
+# EEME only has 1 real year (2015) and SLT only 5 years ending 2022 --
+# both anomalous for what should be an ongoing fund, and neither could be
+# confirmed to actually BE a Bangladesh/Sri Lanka country fund rather than
+# some other, unrelated company that happens to share that ticker. A wrong
+# label would be worse than a real gap -- excluded rather than guessed.
 
 
 def fetch_annual(ticker):
