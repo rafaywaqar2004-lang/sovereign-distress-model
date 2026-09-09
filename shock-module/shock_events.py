@@ -35,6 +35,47 @@ SHOCK_EVENTS = [
         "label": "Pakistan Stand-By Arrangement approved",
         "source": "IMF Executive Board approval date, per this project's own distress_events.py / MENASA's FINANCING_ARRANGEMENTS.",
     },
+    # ---- Added in this pass: real, precisely-dated events, same rigor. ----
+    # Each is added as a real candidate; kept only if the real FX fetch
+    # (fetch_fx.py) actually returns real data for its currency -- some of
+    # these (pegged or thinly-traded currencies) may come back empty, in
+    # which case they're documented as excluded, not silently dropped, the
+    # same precedent already set for Syria below.
+    {
+        "country_code": "TUR", "event_date": "2018-08-10",
+        "label": "Turkish lira currency crisis",
+        "source": "TRY collapsed sharply this day amid the US-Turkey diplomatic/tariff row over pastor Andrew Brunson's detention -- widely reported (Reuters, Bloomberg) at the time.",
+    },
+    {
+        "country_code": "QAT", "event_date": "2017-06-05",
+        "label": "Qatar diplomatic crisis (Gulf blockade begins)",
+        "source": "Saudi Arabia, UAE, Bahrain, and Egypt severed diplomatic ties and imposed a land/sea/air blockade on Qatar this date -- widely reported (Reuters, BBC, Al Jazeera).",
+    },
+    {
+        "country_code": "SAU", "event_date": "2019-09-14",
+        "label": "Abqaiq-Khurais drone/missile attack",
+        "source": "Attack on Saudi Aramco's Abqaiq and Khurais oil facilities knocked out roughly half of Saudi oil output temporarily -- widely reported (Reuters, BBC, EIA).",
+    },
+    {
+        "country_code": "SDN", "event_date": "2023-04-15",
+        "label": "Sudan civil war outbreak",
+        "source": "Fighting broke out between the Sudanese Armed Forces and the Rapid Support Forces in Khartoum this date -- widely reported (Reuters, AP, BBC).",
+    },
+    {
+        "country_code": "ETH", "event_date": "2020-11-04",
+        "label": "Tigray war outbreak",
+        "source": "Ethiopia's federal government launched a military operation in the Tigray region this date -- widely reported (Reuters, BBC, AP).",
+    },
+    {
+        "country_code": "ISR", "event_date": "2023-10-07",
+        "label": "October 7 attack / start of the Israel-Gaza war",
+        "source": "Hamas-led attack on Israel this date, followed by Israel's military response -- extensively documented globally.",
+    },
+    {
+        "country_code": "IRN", "event_date": "2022-09-16",
+        "label": "Mahsa Amini death / nationwide protests begin",
+        "source": "Death of Mahsa Amini in police custody this date triggered nationwide protests in Iran -- widely reported (Reuters, BBC, AP).",
+    },
 ]
 
 # Syria's civil war escalation (2011->2012, MENASA's own validation case) was

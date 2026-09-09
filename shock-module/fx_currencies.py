@@ -13,4 +13,11 @@ EVENT_CURRENCIES = {
     "AFG": "AFN",  # Afghan Afghani
     "EGY": "EGP",  # Egyptian Pound
     "PAK": "PKR",  # Pakistani Rupee
+    "TUR": "TRY",  # Turkish Lira
+    "QAT": "QAR",  # Qatari Riyal (pegged -- real yfinance coverage unconfirmed until fetched)
+    "SAU": "SAR",  # Saudi Riyal (pegged -- real yfinance coverage unconfirmed until fetched)
+    "SDN": "SDG",  # Sudanese Pound (thinly traded -- real yfinance coverage unconfirmed until fetched)
+    "ETH": "ETB",  # Ethiopian Birr (real yfinance coverage unconfirmed until fetched)
+    "ISR": "ILS",  # Israeli Shekel
+    "IRN": "IRR",  # Iranian Rial (sanctions-affected -- real yfinance coverage genuinely uncertain until fetched)
 }
