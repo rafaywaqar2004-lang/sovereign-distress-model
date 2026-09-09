@@ -21,8 +21,14 @@ import urllib.request
 
 SOURCE_URL = (
     "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/"
-    "master/geojson/ne_110m_admin_0_countries.geojson"
+    "master/geojson/ne_50m_admin_0_countries.geojson"
 )
+# Real finding from the first pass at 110m resolution: Natural Earth's 110m
+# dataset drops small states entirely below a certain land area -- Bahrain
+# and the Maldives, both tracked countries in this project's own 34-country
+# panel, were silently missing from the fetched result. Switched to the 50m
+# dataset, which does include them, rather than ship a "detailed map" with
+# two of the 34 tracked countries invisible on it.
 
 # Our map's viewport (see app.py: lataxis_range / lonaxis_range) covers
 # North Africa, the Middle East, and South/Central Asia -- roughly the
