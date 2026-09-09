@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: em-macro-geopolitical-risk-engine
+    runtime: python
+    plan: free
+    branch: main
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true"
+    autoDeploy: true
