@@ -791,7 +791,7 @@ with tab1:
             f'<div class="card"><span class="phase-pill">Forecast & Stress Test</span>'
             f'<div style="{card_title_style}">What happens under a shock scenario?</div>'
             f'<p style="color:{TEXT_MUTED};font-size:0.88rem;line-height:1.6;">A panel AR(1) forecasting model with '
-            f'an interactive stress-test layer — apply a real oil or rate shock and see the forecast move.</p></div>',
+            f'an interactive stress-test layer — apply a real oil, rate, VIX, or dollar shock and see the forecast move.</p></div>',
             unsafe_allow_html=True)
 
     st.markdown(
@@ -1266,9 +1266,9 @@ with tab3:
 with tab4:
     st.markdown('<div class="section-title">Forecast &amp; Stress Test</div>', unsafe_allow_html=True)
     st.markdown(
-        f'<p style="color:{TEXT_MUTED};">A panel AR(1) model forecasting next-year inflation, extended with real, '
-        f'fetched shock drivers (oil price, US short-term rate). Growth is deliberately not forecast interactively '
-        f'here — see the honest result below on why.</p>',
+        f'<p style="color:{TEXT_MUTED};">A panel AR(1) model forecasting next-year inflation, extended with four real, '
+        f'fetched shock drivers (oil price, US short-term rate, VIX, US Dollar Index). Growth is deliberately not '
+        f'forecast interactively here — see the honest result below on why.</p>',
         unsafe_allow_html=True,
     )
 
@@ -1309,30 +1309,40 @@ with tab4:
     baseline_forecast = baseline_row["forecast_2024"]
     actual_2024 = baseline_row["actual_2024"]
 
-    beta_oil = phase3_coefs.set_index("predictor").loc["oil_pct_change", "coefficient"]
-    beta_rate = phase3_coefs.set_index("predictor").loc["rate_change", "coefficient"]
-    p_oil = phase3_coefs.set_index("predictor").loc["oil_pct_change", "p_value"]
-    p_rate = phase3_coefs.set_index("predictor").loc["rate_change", "p_value"]
+    _coefs_idx = phase3_coefs.set_index("predictor")
+    beta_oil = _coefs_idx.loc["oil_pct_change", "coefficient"]
+    beta_rate = _coefs_idx.loc["rate_change", "coefficient"]
+    beta_vix = _coefs_idx.loc["vix_change", "coefficient"]
+    beta_dxy = _coefs_idx.loc["dxy_pct_change", "coefficient"]
+    p_oil = _coefs_idx.loc["oil_pct_change", "p_value"]
+    p_rate = _coefs_idx.loc["rate_change", "p_value"]
+    p_vix = _coefs_idx.loc["vix_change", "p_value"]
+    p_dxy = _coefs_idx.loc["dxy_pct_change", "p_value"]
 
     # ============================================================
     # NAMED SCENARIO PRESETS -- documented, illustrative shock magnitudes
     # (not statistically fitted, and not claimed to be), applied through the
-    # model's own real fitted oil/rate coefficients above. The manual
-    # sliders below still work for any other magnitude; presets just set
-    # them to a defensible starting point instead of leaving the user to
+    # model's own real fitted coefficients above -- now 4 real drivers (oil,
+    # US short rate, VIX, US Dollar Index) instead of the original 2. The
+    # manual sliders below still work for any other magnitude; presets just
+    # set them to a defensible starting point instead of leaving the user to
     # guess a "reasonable" shock size themselves.
     # ============================================================
     SCENARIO_PRESETS = {
-        "Baseline — no shock": {"oil": 0, "rate": 0.0},
-        "Escalation — oil +30%, Fed +150bps": {"oil": 30, "rate": 1.5},
-        "De-escalation — oil −20%, Fed −50bps": {"oil": -20, "rate": -0.5},
-        "Severe tail-risk — oil +60%, Fed +300bps": {"oil": 60, "rate": 3.0},
+        "Baseline — no shock": {"oil": 0, "rate": 0.0, "vix": 0, "dxy": 0.0},
+        "Escalation — oil +30%, Fed +150bps": {"oil": 30, "rate": 1.5, "vix": 0, "dxy": 0.0},
+        "De-escalation — oil −20%, Fed −50bps": {"oil": -20, "rate": -0.5, "vix": 0, "dxy": 0.0},
+        "Global risk-off — VIX +15pts, dollar +8%": {"oil": 0, "rate": 0.0, "vix": 15, "dxy": 8.0},
+        "Dollar surge — DXY +12%, Fed +100bps": {"oil": 0, "rate": 1.0, "vix": 0, "dxy": 12.0},
+        "Severe tail-risk — everything at once": {"oil": 60, "rate": 3.0, "vix": 25, "dxy": 12.0},
     }
 
     def _apply_scenario_preset():
         preset = SCENARIO_PRESETS[st.session_state.p3_scenario_select]
         st.session_state.oil_shock_slider = preset["oil"]
         st.session_state.rate_shock_slider = preset["rate"]
+        st.session_state.vix_shock_slider = preset["vix"]
+        st.session_state.dxy_shock_slider = preset["dxy"]
 
     st.markdown("#### Scenario presets")
     st.caption(
@@ -1353,8 +1363,19 @@ with tab4:
         oil_shock = st.slider("Oil price shock (%)", -60, 60, 0, step=5, key="oil_shock_slider")
     with sc2:
         rate_shock = st.slider("US short-rate shock (pp)", -3.0, 3.0, 0.0, step=0.25, key="rate_shock_slider")
+    sc3, sc4 = st.columns(2)
+    with sc3:
+        vix_shock = st.slider("VIX shock (points)", -20, 30, 0, step=1, key="vix_shock_slider")
+    with sc4:
+        dxy_shock = st.slider("US Dollar Index shock (%)", -15.0, 15.0, 0.0, step=0.5, key="dxy_shock_slider")
 
-    stressed_forecast = baseline_forecast + beta_oil * oil_shock + beta_rate * rate_shock
+    stressed_forecast = (
+        baseline_forecast
+        + beta_oil * oil_shock
+        + beta_rate * rate_shock
+        + beta_vix * vix_shock
+        + beta_dxy * dxy_shock
+    )
 
     m1, m2, m3 = st.columns(3)
     with m1:
@@ -1370,12 +1391,15 @@ with tab4:
 
     st.markdown(
         f'<div class="honest-box"><span class="label">Statistical significance note</span>'
-        f'Neither shock coefficient is statistically significant at conventional levels in this panel '
-        f'(oil: coefficient {beta_oil:+.4f}, p={p_oil:.2f}; rate: coefficient {beta_rate:+.4f}, p={p_rate:.2f}) — '
+        f'None of the four shock coefficients is statistically significant at conventional levels in this panel '
+        f'(oil: {beta_oil:+.4f}, p={p_oil:.2f}; rate: {beta_rate:+.4f}, p={p_rate:.2f}; '
+        f'VIX: {beta_vix:+.4f}, p={p_vix:.2f}; dollar index: {beta_dxy:+.4f}, p={p_dxy:.2f}) — '
         f'only the inflation persistence term is. The oil coefficient\'s <i>sign</i> is directionally sensible '
-        f'(higher oil prices → higher inflation, plausible for a panel with several oil-importing economies), but '
-        f'these sliders illustrate the real, correctly-built stress-test <i>mechanism</i>, not a claim of '
-        f'statistical confidence in the exact magnitude shown.</div>', unsafe_allow_html=True,
+        f'(higher oil prices → higher inflation, plausible for a panel with several oil-importing economies); '
+        f'VIX and the dollar index come out negatively signed here, which is not the textbook direction — reported '
+        f'as-is rather than adjusted to match expectation. These sliders illustrate the real, correctly-built '
+        f'stress-test <i>mechanism</i> across four real drivers, not a claim of statistical confidence in any '
+        f'exact magnitude shown.</div>', unsafe_allow_html=True,
     )
 
     st.markdown("#### Real shock-driver data used")
@@ -1393,13 +1417,31 @@ with tab4:
         fig2.update_layout(title="Real US short-term rate proxy, ^IRX (%)")
         st.plotly_chart(style_chart(fig2, height=280), use_container_width=True)
 
+    dc3, dc4 = st.columns(2)
+    if global_conditions:
+        with dc3:
+            vix_years = sorted(global_conditions["vix"].keys())
+            vix_vals = [global_conditions["vix"][y] for y in vix_years]
+            fig3 = go.Figure(go.Scatter(x=vix_years, y=vix_vals, line=dict(color=BAD), fill="tozeroy"))
+            fig3.update_layout(title="Real CBOE Volatility Index, ^VIX (annual avg)")
+            st.plotly_chart(style_chart(fig3, height=280), use_container_width=True)
+        with dc4:
+            dxy_years = sorted(global_conditions["dollar_index"].keys())
+            dxy_vals = [global_conditions["dollar_index"][y] for y in dxy_years]
+            fig4 = go.Figure(go.Scatter(x=dxy_years, y=dxy_vals, line=dict(color=GOOD), fill="tozeroy"))
+            fig4.update_layout(title="Real US Dollar Index, DX-Y.NYB (annual avg)")
+            st.plotly_chart(style_chart(fig4, height=280), use_container_width=True)
+
     st.caption(
-        "Independently validated in R (plm) — matches Python almost exactly on all three coefficients "
-        "(inflation_lag 0.5706, oil_pct_change 0.0493, rate_change -0.1531, same in both). "
-        "US short-rate is `^IRX` (13-week Treasury bill), a real, standard proxy for the Fed funds "
-        "rate, used after FRED's own export endpoint was confirmed as a genuine, structural dead end across 4 "
-        "real attempts. Dynamic (horizon-by-horizon) effects of this same oil shock are in the "
-        "Methodology &amp; Validation tab."
+        "Independently validated in R (plm) — matches Python almost exactly on all four coefficients "
+        "(inflation_lag 0.5713, oil_pct_change 0.0420, rate_change -0.2050, vix_change -0.0644, "
+        "dxy_pct_change -0.0487, same in both). US short-rate is `^IRX` (13-week Treasury bill), a real, "
+        "standard proxy for the Fed funds rate, used after FRED's own export endpoint was confirmed as a "
+        "genuine, structural dead end across 4 real attempts. Two other real global-conditions series "
+        "(US 10-year Treasury yield, EM bond ETF price) were tested and deliberately excluded — both "
+        "correlate too strongly (|r| ≥ 0.65) with the rate driver already in the model to add distinct "
+        "signal on a panel this thin, not silently left out. Dynamic (horizon-by-horizon) effects of the "
+        "oil shock are in the Methodology &amp; Validation tab."
     )
 
 with tab5:
@@ -1453,7 +1495,7 @@ with tab5:
          "Frequency": "Annual", "Coverage": "2010–2024", "Fetched via": "MENASA Risk Monitor's pipeline (shared, not re-fetched)"},
         {"Source": "IMF Executive Board records (via this project's own sourced dataset)", "Used for": "sovereign_default / imf_program_entry outcome events",
          "Frequency": "Event-dated", "Coverage": "2010–2024, 17 real events", "Fetched via": "data/distress_events.py — cited individually, not bulk-downloaded"},
-        {"Source": "GDELT 2.0 Doc API", "Used for": "Media tone/volume around 5 geopolitical shock events",
+        {"Source": "GDELT 2.0 Doc API", "Used for": f"Media tone/volume around {_n_shocks_total} geopolitical shock events",
          "Frequency": "Daily", "Coverage": "Feb 2015+ (GDELT's own real coverage start)", "Fetched via": "GitHub Actions (shock-module/fetch-shocks.yml)"},
         {"Source": "yfinance — FX pairs", "Used for": "Real historical USD exchange rates around each shock event",
          "Frequency": "Daily", "Coverage": "±30 days per event", "Fetched via": "GitHub Actions (shock-module/fetch-fx.yml)"},
@@ -1461,6 +1503,10 @@ with tab5:
          "Frequency": "Annual average", "Coverage": "2010–2024", "Fetched via": "GitHub Actions (forecast-module/fetch_shock_drivers.py)"},
         {"Source": "yfinance — ^IRX (13-week T-bill)", "Used for": "US short-rate proxy, Phase 3 stress test",
          "Frequency": "Annual average", "Coverage": "2010–2024", "Fetched via": "GitHub Actions (forecast-module/fetch_shock_drivers.py)"},
+        {"Source": "yfinance — ^VIX (CBOE Volatility Index)", "Used for": "Global risk-aversion shock driver, Phase 3 stress test",
+         "Frequency": "Annual average", "Coverage": "2010–2026", "Fetched via": "GitHub Actions (forecast-module/fetch_global_conditions.py)"},
+        {"Source": "yfinance — DX-Y.NYB (US Dollar Index)", "Used for": "Dollar-strength shock driver, Phase 3 stress test",
+         "Frequency": "Annual average", "Coverage": "2010–2026", "Fetched via": "GitHub Actions (forecast-module/fetch_global_conditions.py)"},
     ])
     st.dataframe(provenance, use_container_width=True, hide_index=True)
     st.caption(
@@ -1622,12 +1668,16 @@ with tab5:
     with st.expander("Phase 3 — Macro Forecasting + Stress Test: data sources, method, limitations", expanded=False):
         st.markdown(
             "**Data:** MENASA's real raw economic indicators (not the normalized risk sub-scores — see the "
-            "data-quality issues section below), plus real oil price (yfinance `CL=F`) and short-rate "
-            "(yfinance `^IRX`) data.\n\n"
-            "**Method:** panel AR(1) fixed-effects regression, extended with real shock-driver regressors.\n\n"
+            "data-quality issues section below), plus four real shock-driver series: oil price (yfinance "
+            "`CL=F`), short-rate proxy (yfinance `^IRX`), VIX (yfinance `^VIX`), and the US Dollar Index "
+            "(yfinance `DX-Y.NYB`). Two more real series (US 10-year yield, EM bond ETF price) were tested "
+            "and excluded for being too collinear (|r| ≥ 0.65) with the short-rate driver to add distinct "
+            "signal, not silently left out.\n\n"
+            "**Method:** panel AR(1) fixed-effects regression, extended with four real shock-driver regressors.\n\n"
             "**Limitations:** 15 years of annual data per country is thin for time-series forecasting. Growth "
-            "forecasts should not be relied on. The shock coefficients in the stress-test layer are not "
-            "statistically significant — real, correctly-built mechanism, not a validated precise sensitivity."
+            "forecasts should not be relied on. None of the four shock coefficients in the stress-test layer is "
+            "statistically significant — real, correctly-built mechanism, not a validated precise sensitivity. "
+            "VIX and the dollar index also come out with a counter-intuitive sign here, reported as-is."
         )
 
     # ============================================================
@@ -1694,7 +1744,10 @@ with tab5:
             "market-wide EM risk-premium *proxy* — never attributed to any single country's spread, since no free "
             "source publishes per-country sovereign spreads or CDS (confirmed by the companion "
             "overeign-risk-index project's own prior investigation of the entire WDI catalog and IMF's public "
-            "APIs — genuinely absent, not merely unfetched).\n\n"
+            "APIs — genuinely absent, not merely unfetched). VIX and the dollar index are wired into the Phase 3 "
+            "stress test as two more real shock drivers (Forecast & Stress Test tab); the 10-year yield and EMB "
+            "were tested for the same role and excluded — too collinear with the short-rate driver already in "
+            "that model to add distinct signal.\n\n"
             "**Real, sourced chokepoint exposure** (`data/chokepoint_exposure.py`): Suez Canal, Bab el-Mandeb, and "
             "Strait of Hormuz exposure assigned by real geography/trade dependency (Egypt as Suez's operator; "
             "Djibouti/Yemen/Somalia/Eritrea as Bab el-Mandeb littoral states; Iran/Oman as Hormuz's littoral "

@@ -1,9 +1,9 @@
 # Macro Forecasting + Stress Testing (Phase 3)
 
 Real panel forecasting for GDP growth and inflation, plus a real
-stress-test layer letting a shock (oil price, US short-term rate) flow
-through the model's own fitted coefficients rather than an assumed
-multiplier.
+stress-test layer letting a shock (oil price, US short-term rate, VIX,
+US Dollar Index) flow through the model's own fitted coefficients rather
+than an assumed multiplier.
 
 ## Part 1: base forecasting model (`forecast_model.py`)
 
@@ -36,7 +36,7 @@ data):
 
 ## Part 2: stress-test layer (`stress_test.py`)
 
-Extends the inflation model (the one with real signal) with two real,
+Extends the inflation model (the one with real signal) with four real,
 fetched shock drivers:
 
 - **Oil price** (`fetch_shock_drivers.py`, via yfinance's WTI futures
@@ -50,20 +50,43 @@ fetched shock drivers:
   use, not automated requests), not a transient fluke. FRED's real API
   would work but needs a free API key; `^IRX` doesn't and was already
   proven reliable in this project twice over.
+- **VIX** (`fetch_global_conditions.py`, via yfinance's `^VIX`) — the
+  standard global risk-aversion gauge, a distinct channel from oil/rates
+  (capital flight / risk-off pressure on EM currencies and prices).
+- **US Dollar Index** (`fetch_global_conditions.py`, via yfinance's
+  `DX-Y.NYB`) — broad dollar strength, a distinct import-price
+  pass-through channel for these economies.
 
-**Real, honest result:** neither shock coefficient is statistically
-significant at conventional levels in this panel (oil: p=0.28; rate:
-p=0.90) — only the inflation persistence term is (p<0.0001). The oil
-coefficient's *sign* is directionally sensible (higher oil prices →
-higher inflation, plausible for a panel with several oil-importing
-economies), but it's a rough, unreliable point estimate, not a validated
-sensitivity. Reported plainly in the script's own output rather than
-dressed up — the example stress scenarios illustrate the mechanism, not
-a claim of statistical confidence.
+Two more real global-conditions series (`fetch_global_conditions.py`
+also fetches the US 10-year Treasury yield and an EM bond ETF, `EMB`,
+used elsewhere in this project as a market-wide EM risk-premium proxy)
+were tested for this same role and deliberately excluded: the 10-year
+yield correlates 0.70 with the short-rate driver already in the model
+(same underlying Fed-cycle signal), and EMB correlates -0.65 with the
+10-year and -0.54 with the short rate for the same reason — both would
+muddy interpretation of the existing rate term rather than add distinct
+real signal, on a panel already this thin. Tested and excluded, not
+just left unused because untried.
+
+**Real, honest result:** none of the four shock coefficients is
+statistically significant at conventional levels in this panel (oil:
+p=0.28; rate: p=0.87; VIX: p=0.64; dollar index: p=0.74) — only the
+inflation persistence term is (p<0.0001). The oil coefficient's *sign*
+is directionally sensible (higher oil prices → higher inflation,
+plausible for a panel with several oil-importing economies); VIX and
+the dollar index come out negatively signed, which is not the textbook
+direction (a risk-off spike or dollar surge would typically be expected
+to raise import-price inflation) — reported as-is rather than adjusted
+to match expectation, since on a panel this thin the sign itself isn't
+reliable either. All four are rough, unreliable point estimates, not
+validated sensitivities. Reported plainly in the script's own output
+rather than dressed up — the example stress scenarios illustrate the
+mechanism, not a claim of statistical confidence.
 
 Independently validated in R (`stress_test_validation.R`): matches
-Python almost exactly (inflation_lag 0.5706 both, oil_pct_change 0.0493
-both, rate_change -0.1531 both).
+Python almost exactly (inflation_lag 0.5713 both, oil_pct_change 0.0420
+both, rate_change -0.2050 both, vix_change -0.0644 both, dxy_pct_change
+-0.0487 both).
 
 ## Running it
 
@@ -75,9 +98,9 @@ Rscript stress_test_validation.R   # independent cross-check
 python3 load_db.py                 # builds forecast_module.db
 ```
 
-The two fetch scripts (`fetch_shock_drivers.py`) run via GitHub Actions,
-not locally — both source domains are unreachable from the sandbox this
-project is developed in.
+The fetch scripts (`fetch_shock_drivers.py`, `fetch_global_conditions.py`)
+run via GitHub Actions, not locally — the source domains are unreachable
+from the sandbox this project is developed in.
 
 ## Limitations
 
@@ -86,10 +109,11 @@ project is developed in.
   actually supports, not a limitation of the modeling choice.
 - Growth forecasts should not be relied on — the model itself, honestly,
   doesn't beat guessing "no change."
-- The shock coefficients are not statistically significant — the
+- None of the four shock coefficients is statistically significant — the
   stress-test mechanism is real and correctly built, but the specific
   sensitivities it currently estimates shouldn't be relied on for a
-  precise magnitude, only a directional illustration.
+  precise magnitude, only a directional illustration. VIX and the dollar
+  index also carry a counter-intuitive sign here, reported as-is.
 - `^IRX` is a real, standard proxy for the Fed funds rate, not the literal
   FEDFUNDS series — documented explicitly, not silently substituted.
 - This is a research/portfolio product, not investment advice.
