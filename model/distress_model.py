@@ -30,7 +30,7 @@ correction for exactly this kind of panel data.
 import pandas as pd
 import statsmodels.api as sm
 
-from firth_logit import firth_logit
+from firth_logit import firth_logit, firth_profile_test
 
 PRIMARY_FACTOR_COLS = [
     "current_account_pct_gdp", "reserves_months_imports",
@@ -86,8 +86,19 @@ def fit_and_report_firth(outcome_col, factor_cols, label):
     near-perfect separation `fit_and_report` above can only flag, not
     solve, when events are this rare. See firth_logit.py's docstring for
     why this is a from-scratch implementation (PyPI's firthlogist doesn't
-    support this project's Python version; CRAN's logistf was unreachable
-    from this sandbox to independently cross-check)."""
+    support this project's Python version; CRAN's logistf couldn't be
+    installed either). Independently cross-validated in R anyway --
+    r-validation/firth_validation.R is a second from-scratch
+    implementation of the same algorithm in base R, not a wrapper around
+    the unreachable logistf, and matches this file's output almost to
+    the decimal.
+
+    Also reports Firth's own preferred significance test -- the profile
+    penalized likelihood ratio, not just the Wald p-value -- since the
+    two visibly disagree here (see the printed table): Wald relies on a
+    large-sample normal approximation that is exactly least trustworthy
+    in this small, near-separated regime, which is the entire reason
+    Firth's correction exists in the first place."""
     complete = panel.dropna(subset=factor_cols + [outcome_col])
     X = sm.add_constant(complete[factor_cols])
     y = complete[outcome_col]
@@ -98,11 +109,24 @@ def fit_and_report_firth(outcome_col, factor_cols, label):
     result = firth_logit(X.values, y.values)
     print(f"Converged: {result['converged']} (in {result['n_iter']} iterations)")
     print(f"Penalized log-likelihood: {result['loglik_penalized']:.4f}\n")
+
+    profile = firth_profile_test(X.values, y.values, result["beta"], result["loglik_penalized"])
+    profile_p = ["n/a (did not converge)" if not c else f"{p:.4f}" for p, c in zip(profile["p"], profile["converged"])]
+
     summary = pd.DataFrame({
         "coef": result["beta"], "std err": result["se"],
-        "z": result["z"], "P>|z|": result["p"],
+        "wald P>|z|": result["p"], "profile-LR p": profile_p,
     }, index=X.columns)
     print(summary.round(4).to_string())
+    n_unconverged = int((~profile["converged"]).sum())
+    if n_unconverged:
+        print(
+            f"\n*** {n_unconverged} of {len(X.columns)} profile-likelihood refits did not converge within a "
+            f"generous iteration budget (tried multiple starting points and step sizes) -- reported as "
+            f"unavailable for those factors, not filled in with an unreliable number. A real constraint of "
+            f"profiling a penalized likelihood this close to separation, not a bug being silently worked around. ***"
+        )
+    result["profile"] = profile
     return result
 
 

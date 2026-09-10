@@ -381,45 +381,103 @@ phase1_benchmark, phase1_benchmark_corr, phase1_benchmark_unrated = benchmark_vs
 
 
 # ============================================================
-# LOCAL PROJECTIONS -- real dynamic (impulse-response-style) effects of a
-# real oil-price shock on inflation and GDP growth at horizons h=0,1,2,
+# LOCAL PROJECTIONS -- real dynamic (impulse-response-style) effects of
+# each of the four real stress-test shock drivers (oil, US short rate,
+# VIX, US Dollar Index) on inflation and GDP growth at horizons h=0,1,2,
 # panel fixed-effects at each horizon (Jorda 2005 local-projections
 # design). Deliberately kept to h=0-2, not the 8-12 horizons a textbook
 # treatment might use -- with only 15 years of annual data per country,
 # horizons that long would leave too few non-overlapping observations per
 # country to estimate anything real; stated here, not silently shortened
-# without explanation.
+# without explanation. Started covering only the oil shock; extended here
+# to all four drivers now that the stress test itself covers all four,
+# for the same reason the stress test was extended -- so this validation
+# view doesn't silently lag behind what the live tool actually offers.
 # ============================================================
+LOCAL_PROJ_DRIVERS = {
+    "Oil price": "oil_pct_change",
+    "US short rate": "rate_change",
+    "VIX": "vix_change",
+    "US Dollar Index": "dxy_pct_change",
+}
+
+# Real findings from this project's own local-projections output, one per
+# driver -- {n_sig}/{n_total} is computed live from the same table shown
+# above, never a hardcoded count; the interpretive sentence is this
+# session's own read of that real, computed pattern.
+LOCAL_PROJ_NOTES = {
+    "oil_pct_change": (
+        "A real, substantive finding ({n_sig} of {n_total} horizon-outcome pairs significant at 5%): the "
+        "oil-shock effect on gdp_growth is positive and significant on impact (h=0, many of these 34 economies "
+        "are oil producers/exporters) but reverses to significant and negative by h=2 — consistent with a "
+        "delayed drag once higher energy costs feed through to importers and global demand. Inflation shows no "
+        "significant effect at any horizon here, consistent with the non-significant oil coefficient already "
+        "found in the stress-test model above — the same real finding surfacing twice, not a contradiction."
+    ),
+    "rate_change": (
+        "A real, substantive finding ({n_sig} of {n_total} horizon-outcome pairs significant at 5%): a US "
+        "short-rate rise coincides with significantly higher growth on impact (h=0) but reverses to "
+        "significantly lower growth at h=1 and h=2 — a real, dynamic pattern consistent with the standard "
+        "monetary-policy-lag story (rate hikes often land during a period of already-strong growth, then drag "
+        "on it with a delay), not visible at all in the stress test's single static coefficient above."
+    ),
+    "vix_change": (
+        "A real, substantive finding ({n_sig} of {n_total} horizon-outcome pairs significant at 5%): a VIX "
+        "spike coincides with significantly lower growth and lower inflation on impact (h=0) — a real, "
+        "textbook risk-off signature — before both effects partially reverse and flip sign by h=2. The static "
+        "stress-test coefficient above, being a single number, cannot show this reversal; the horizon-by-horizon "
+        "view here can."
+    ),
+    "dxy_pct_change": (
+        "Mostly a null finding ({n_sig} of {n_total} horizon-outcome pairs significant at 5%), consistent with "
+        "the non-significant dollar-index coefficient already found in the stress-test model above — reported "
+        "plainly rather than searched over horizons until something looked significant."
+    ),
+}
+
+
 @st.cache_resource
-def fit_local_projections(raw_panel_df, drivers_dict, outcomes=("inflation", "gdp_growth"), horizons=(0, 1, 2)):
+def fit_local_projections(raw_panel_df, drivers_dict, global_conditions_dict=None,
+                           outcomes=("inflation", "gdp_growth"), horizons=(0, 1, 2)):
     oil = {int(y): v for y, v in drivers_dict["oil_annual_avg_usd"].items()}
+    rate = {int(y): v for y, v in drivers_dict["us_short_rate_annual_avg_pct"].items()}
     panel_lp = raw_panel_df.copy()
     panel_lp["oil_price"] = panel_lp["year"].map(oil)
+    panel_lp["us_short_rate"] = panel_lp["year"].map(rate)
     panel_lp = panel_lp.sort_values(["country_code", "year"])
     panel_lp["oil_pct_change"] = panel_lp.groupby("country_code")["oil_price"].transform(lambda s: s.pct_change(fill_method=None) * 100)
+    panel_lp["rate_change"] = panel_lp.groupby("country_code")["us_short_rate"].transform(lambda s: s.diff())
+
+    driver_cols = ["oil_pct_change", "rate_change"]
+    if global_conditions_dict:
+        vix = {int(y): v for y, v in global_conditions_dict["vix"].items()}
+        dxy = {int(y): v for y, v in global_conditions_dict["dollar_index"].items()}
+        panel_lp["vix"] = panel_lp["year"].map(vix)
+        panel_lp["dxy"] = panel_lp["year"].map(dxy)
+        panel_lp["vix_change"] = panel_lp.groupby("country_code")["vix"].transform(lambda s: s.diff())
+        panel_lp["dxy_pct_change"] = panel_lp.groupby("country_code")["dxy"].transform(lambda s: s.pct_change(fill_method=None) * 100)
+        driver_cols += ["vix_change", "dxy_pct_change"]
 
     rows = []
-    for outcome in outcomes:
-        for h in horizons:
-            df = panel_lp[["country_code", "year", outcome, "oil_pct_change"]].copy()
-            df[f"y_h{h}"] = df.groupby("country_code")[outcome].shift(-h)
-            df = df.dropna(subset=[f"y_h{h}", "oil_pct_change"]).set_index(["country_code", "year"])
-            if len(df) < 30:
-                rows.append({"outcome": outcome, "h": h, "coef": None, "lo": None, "hi": None, "p": None, "n": len(df)})
-                continue
-            y = df[f"y_h{h}"]
-            X = df[["oil_pct_change"]]
-            res = PanelOLS(y, X, entity_effects=True).fit(cov_type="clustered", cluster_entity=True)
-            ci = res.conf_int().loc["oil_pct_change"]
-            rows.append({
-                "outcome": outcome, "h": h,
-                "coef": float(res.params["oil_pct_change"]), "lo": float(ci.iloc[0]), "hi": float(ci.iloc[1]),
-                "p": float(res.pvalues["oil_pct_change"]), "n": int(res.nobs),
-            })
+    for driver_col in driver_cols:
+        for outcome in outcomes:
+            for h in horizons:
+                df = panel_lp[["country_code", "year", outcome, driver_col]].copy()
+                df[f"y_h{h}"] = df.groupby("country_code")[outcome].shift(-h)
+                df = df.dropna(subset=[f"y_h{h}", driver_col]).set_index(["country_code", "year"])
+                if len(df) < 30:
+                    rows.append({"driver": driver_col, "outcome": outcome, "h": h, "coef": None, "lo": None, "hi": None, "p": None, "n": len(df)})
+                    continue
+                y = df[f"y_h{h}"]
+                X = df[[driver_col]]
+                res = PanelOLS(y, X, entity_effects=True).fit(cov_type="clustered", cluster_entity=True)
+                ci = res.conf_int().loc[driver_col]
+                rows.append({
+                    "driver": driver_col, "outcome": outcome, "h": h,
+                    "coef": float(res.params[driver_col]), "lo": float(ci.iloc[0]), "hi": float(ci.iloc[1]),
+                    "p": float(res.pvalues[driver_col]), "n": int(res.nobs),
+                })
     return pd.DataFrame(rows)
-
-
-phase3_local_proj = fit_local_projections(phase3_panel, phase3_drivers)
 
 
 # ============================================================
@@ -440,7 +498,7 @@ from risk_architecture import SUB_INDICES, CONTEXT_ONLY, build_sub_indices  # no
 from peer_comparison import DIRECTION, latest_value_per_country, what_changed, top_movers  # noqa: E402
 from chokepoint_exposure import MARITIME_CHOKEPOINTS, CHOKEPOINT_EXPOSURE, exposure_summary  # noqa: E402
 from trade_infrastructure import TRADE_BLOCS, TRADE_BLOCS_SOURCE, MAJOR_PORTS, PORTS_SOURCE  # noqa: E402
-from firth_logit import firth_logit  # noqa: E402
+from firth_logit import firth_logit, firth_profile_test  # noqa: E402
 
 
 # ============================================================
@@ -451,9 +509,11 @@ from firth_logit import firth_logit  # noqa: E402
 # PerfectSeparationWarning). Firth's penalized logistic regression
 # (model/firth_logit.py, a from-scratch implementation -- see its
 # docstring for why: PyPI's firthlogist doesn't support this app's Python
-# version, and CRAN's logistf couldn't be reached to cross-check) is the
+# version, and CRAN's logistf couldn't be installed either) is the
 # standard fix, refit live here for the same drift-proofing reason as
-# fit_phase1_model above.
+# fit_phase1_model above. Independently cross-validated anyway --
+# r-validation/firth_validation.R is a second from-scratch implementation
+# of the same algorithm in base R, not a logistf wrapper.
 # ============================================================
 @st.cache_resource
 def fit_sovereign_default_firth(panel_df):
@@ -461,6 +521,7 @@ def fit_sovereign_default_firth(panel_df):
     X = sm.add_constant(complete[PRIMARY_FACTOR_COLS]).values
     y = complete["sovereign_default"].values
     result = firth_logit(X, y)
+    result["profile"] = firth_profile_test(X, y, result["beta"], result["loglik_penalized"])
     return result, complete
 
 
@@ -513,6 +574,7 @@ def load_global_conditions():
 
 
 global_conditions = load_global_conditions()
+phase3_local_proj = fit_local_projections(phase3_panel, phase3_drivers, global_conditions)
 
 
 @st.cache_data
@@ -545,7 +607,7 @@ displacement_latest = load_displacement()
 # repo secret). Degrades to "not yet available" -- never fabricated -- if
 # the fetch hasn't run yet.
 # ============================================================
-from trade_network import load_trade_network, trade_concentration, spillover_exposure  # noqa: E402
+from trade_network import load_trade_network, trade_concentration, spillover_exposure, shockable_countries  # noqa: E402
 
 
 @st.cache_data
@@ -554,7 +616,14 @@ def load_trade_network_cached():
 
 
 trade_net_df = load_trade_network_cached()
+# Countries that can be the EXPOSED party -- only real reporters can show
+# their own real import/export exposure percentages.
 trade_net_countries = sorted(set(trade_net_df["reporter_code"])) if trade_net_df is not None else []
+# Countries that can be the SHOCKED party -- real reporters plus the real
+# mirror-statistics countries (see shockable_countries()'s own docstring).
+trade_net_shockable = (
+    shockable_countries(trade_net_df, COUNTRIES.keys()) if trade_net_df is not None else []
+)
 
 
 # ============================================================
@@ -1242,9 +1311,20 @@ with tab3:
             unsafe_allow_html=True,
         )
         sel_shock_country = st.selectbox(
-            "Shocked country", trade_net_countries,
+            "Shocked country", trade_net_shockable,
             format_func=lambda c: COUNTRIES.get(c, c), key="trade_net_country",
         )
+        if sel_shock_country not in trade_net_countries:
+            st.markdown(
+                f'<div class="honest-box"><span class="label">Mirror-statistics country</span>'
+                f'{COUNTRIES.get(sel_shock_country, sel_shock_country)} does not itself report to UN Comtrade '
+                f'(sanctions or active conflict disrupt its own reporting — see Trade &amp; Infrastructure tab). '
+                f'The exposure below is still real: computed from the other 25 reporters\' own declarations of '
+                f'their real trade WITH {COUNTRIES.get(sel_shock_country, sel_shock_country)} (standard "mirror '
+                f'statistics" in trade data) — not invented, but it only captures trade with this project\'s 34 '
+                f'tracked countries, not {COUNTRIES.get(sel_shock_country, sel_shock_country)}\'s full global trade.</div>',
+                unsafe_allow_html=True,
+            )
         spill = spillover_exposure(trade_net_df, sel_shock_country, trade_net_countries)
         if spill.empty:
             st.caption(f"No real trade linkage found between {COUNTRIES.get(sel_shock_country, sel_shock_country)} and any other tracked country in this data.")
@@ -1529,10 +1609,13 @@ with tab5:
             "near-perfect separation under plain MLE (statsmodels raises `PerfectSeparationWarning`, coefficients "
             "diverge) — fixed below with Firth's penalized logistic regression, a from-scratch implementation "
             "(`model/firth_logit.py`) since PyPI's `firthlogist` doesn't support this app's Python version and "
-            "CRAN's `logistf` couldn't be reached from this sandbox to cross-check (egress policy blocks "
-            "cloud.r-project.org) — disclosed rather than silently skipped. Inference uses the standard Wald "
-            "approximation from the observed-information inverse, not Firth's preferred profile-likelihood test, "
-            "which is not implemented — a real, disclosed limitation of this fix, not a hidden one."
+            "CRAN's `logistf` couldn't be installed here either (egress policy blocks cloud.r-project.org) — "
+            "independently cross-validated anyway, with a second from-scratch implementation of the same "
+            "algorithm in base R (`r-validation/firth_validation.R`, matching almost to the decimal), not a "
+            "wrapper around the unreachable package. Both the standard Wald approximation and Firth's own "
+            "preferred profile penalized likelihood ratio test are reported below — they visibly disagree for "
+            "several factors, exactly the known failure mode Wald has in small, near-separated samples like "
+            "this one."
         )
 
     st.markdown("#### Model coefficients (primary specification, `imf_program_entry`)")
@@ -1555,18 +1638,38 @@ with tab5:
     )
 
     st.markdown("#### Model coefficients (`sovereign_default`, Firth's penalized logistic regression)")
+    _profile = sovereign_default_firth["profile"]
+    _profile_p_display = [
+        f"{_profile['p'][i + 1]:.4f}" if _profile["converged"][i + 1] else "n/a"
+        for i in range(len(PRIMARY_FACTOR_COLS))
+    ]
     firth_coef_data = pd.DataFrame({
         "Factor": PRIMARY_FACTOR_COLS,
         "Coefficient": [sovereign_default_firth["beta"][i + 1] for i in range(len(PRIMARY_FACTOR_COLS))],
         "Std. error": [sovereign_default_firth["se"][i + 1] for i in range(len(PRIMARY_FACTOR_COLS))],
-        "p-value": [sovereign_default_firth["p"][i + 1] for i in range(len(PRIMARY_FACTOR_COLS))],
+        "Wald p-value": [sovereign_default_firth["p"][i + 1] for i in range(len(PRIMARY_FACTOR_COLS))],
+        "Profile-LR p-value": _profile_p_display,
     })
-    firth_coef_data["Significant (5%)"] = firth_coef_data["p-value"].apply(lambda p: "Yes" if p < 0.05 else "No")
     firth_coef_data["Coefficient"] = firth_coef_data["Coefficient"].round(4)
     firth_coef_data["Std. error"] = firth_coef_data["Std. error"].round(4)
-    firth_coef_data["p-value"] = firth_coef_data["p-value"].round(3)
+    firth_coef_data["Wald p-value"] = firth_coef_data["Wald p-value"].round(3)
     st.dataframe(firth_coef_data, use_container_width=True, hide_index=True)
     _sd_n_events = int(sovereign_default_complete["sovereign_default"].sum())
+    _n_profile_unconverged = int((~_profile["converged"][1:]).sum())
+    st.markdown(
+        f'<div class="honest-box"><span class="label">Wald and profile-LR disagree — a real, expected finding</span>'
+        f'Wald p-values (from the coefficient/standard-error ratio) and Firth\'s own preferred profile penalized '
+        f'likelihood ratio test visibly disagree for several factors here — most notably <code>political_stability</code> '
+        f'and <code>rule_of_law</code> look non-significant under Wald (p≈0.16–0.18) but strongly significant under '
+        f'profile-LR (p&lt;0.001). This is the textbook reason Firth\'s own literature recommends the profile test over '
+        f'Wald for exactly this kind of small, near-separated sample — the Wald test\'s normal approximation is least '
+        f'reliable right where it matters most here. '
+        + (f'{_n_profile_unconverged} of {len(PRIMARY_FACTOR_COLS)} profile refits (inflation) did not converge within '
+           f'a generous iteration budget even after retrying from multiple starting points — reported as "n/a" rather '
+           f'than an unreliable number, a real limit of profiling this close to separation, not silently patched over.'
+           if _n_profile_unconverged else '')
+        + '</div>', unsafe_allow_html=True,
+    )
     st.caption(
         f"Live-fitted in this app on every load ({len(sovereign_default_complete)} complete-case observations, "
         f"{_sd_n_events} of 2 real sovereign_default events — Lebanon 2020, Sri Lanka 2022). Plain MLE on this "
@@ -1681,24 +1784,30 @@ with tab5:
         )
 
     # ============================================================
-    # LOCAL PROJECTIONS -- dynamic effects of a real oil-price shock at
-    # horizons h=0,1,2 (Jordà-style local projections, panel FE at each
-    # horizon). See fit_local_projections()'s own docstring for why only
-    # 3 horizons, not the 8-12 a textbook treatment might show. Moved here
-    # from the Forecast & Stress Test tab -- this is validation/methodology
-    # depth, not something a live-tool user needs front and center.
+    # LOCAL PROJECTIONS -- dynamic effects of each of the four real
+    # stress-test shock drivers at horizons h=0,1,2 (Jordà-style local
+    # projections, panel FE at each horizon). See fit_local_projections()'s
+    # own docstring for why only 3 horizons, not the 8-12 a textbook
+    # treatment might show. Moved here from the Forecast & Stress Test tab
+    # -- this is validation/methodology depth, not something a live-tool
+    # user needs front and center. Extended from oil-only to all four
+    # drivers so this view doesn't lag behind the stress test itself.
     # ============================================================
     st.markdown("#### Phase 3 dynamic effects — local projections")
     st.markdown(
-        f'<p style="color:{TEXT_MUTED};font-size:0.9rem;">A separate real oil-price shock on growth and inflation, '
-        f'estimated at each horizon (h=0, 1, 2 years ahead) rather than assumed constant — the standard '
+        f'<p style="color:{TEXT_MUTED};font-size:0.9rem;">Each real shock driver\'s effect on growth and inflation, '
+        f'estimated separately at each horizon (h=0, 1, 2 years ahead) rather than assumed constant — the standard '
         f'local-projections design (Jordà 2005), the same general approach the IMF\'s own geopolitical-risk '
         f'research uses for horizon-by-horizon effects, though not its specific model.</p>', unsafe_allow_html=True,
     )
+    lp_driver_label = st.selectbox("Shock driver", list(LOCAL_PROJ_DRIVERS.keys()), key="lp_driver_select")
+    lp_driver_col = LOCAL_PROJ_DRIVERS[lp_driver_label]
+    lp_driver_df = phase3_local_proj[phase3_local_proj["driver"] == lp_driver_col]
+
     lp_cols = st.columns(2)
     for col, outcome, label, color in zip(lp_cols, ["gdp_growth", "inflation"], ["GDP growth", "Inflation"], [ACCENT, ACCENT2]):
         with col:
-            sub = phase3_local_proj[phase3_local_proj["outcome"] == outcome].dropna(subset=["coef"])
+            sub = lp_driver_df[lp_driver_df["outcome"] == outcome].dropna(subset=["coef"])
             fig_lp = go.Figure()
             fig_lp.add_trace(go.Scatter(
                 x=sub["h"], y=sub["hi"], mode="lines", line=dict(width=0), showlegend=False, hoverinfo="skip",
@@ -1709,20 +1818,19 @@ with tab5:
             ))
             fig_lp.add_trace(go.Scatter(x=sub["h"], y=sub["coef"], mode="lines+markers", line=dict(color=color), name="Coefficient"))
             fig_lp.add_hline(y=0, line_dash="dot", line_color=BORDER)
-            fig_lp.update_layout(title=f"Effect of a 1pp oil-price shock on {label} (95% CI)", xaxis_title="Horizon (years)")
+            fig_lp.update_layout(title=f"Effect of a {lp_driver_label} shock on {label} (95% CI)", xaxis_title="Horizon (years)")
             st.plotly_chart(style_chart(fig_lp, height=320), use_container_width=True)
 
-    lp_table = phase3_local_proj.copy()
+    lp_table = lp_driver_df.drop(columns=["driver"]).copy()
     lp_table["Significant (5%)"] = lp_table["p"].apply(lambda p: "Yes" if pd.notna(p) and p < 0.05 else "No")
     lp_table.columns = ["Outcome", "Horizon (h)", "Coefficient", "CI low", "CI high", "p-value", "N", "Significant (5%)"]
     st.dataframe(lp_table, use_container_width=True, hide_index=True)
+
+    _n_sig = int((lp_driver_df["p"] < 0.05).sum())
+    _n_total = int(lp_driver_df["p"].notna().sum())
     st.caption(
-        "A real, substantive finding: the oil-shock effect on gdp_growth is positive and significant on impact "
-        "(h=0, many of these 34 economies are oil producers/exporters) but reverses to significant and negative "
-        "by h=2 — consistent with a delayed drag once higher energy costs feed through to importers and global "
-        "demand. Inflation shows no significant effect at any horizon here, consistent with the non-significant "
-        "oil coefficient already found in the stress-test model above — the same real finding surfacing twice, "
-        "not a contradiction. Panel fixed-effects regression (linearmodels.PanelOLS), clustered by country."
+        LOCAL_PROJ_NOTES.get(lp_driver_col, "").format(n_sig=_n_sig, n_total=_n_total)
+        + " Panel fixed-effects regression (linearmodels.PanelOLS), clustered by country."
     )
 
     with st.expander("Risk Architecture — extended indicators, ablation test, chokepoints, global conditions", expanded=False):

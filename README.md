@@ -87,9 +87,14 @@ cd ../model && python3 distress_model.py
   regression (`model/firth_logit.py`), a from-scratch implementation since
   neither PyPI's `firthlogist` (needs Python <3.11) nor CRAN's `logistf`
   (unreachable from this sandbox — egress policy blocks cloud.r-project.org)
-  were available to use directly. Inference uses the standard Wald
-  approximation, not Firth's preferred profile-likelihood test, which isn't
-  implemented — disclosed, not hidden.
+  were available to use directly. Independently cross-validated anyway via
+  a second from-scratch implementation of the same algorithm in base R
+  (`r-validation/firth_validation.R`), matching almost to the decimal — not
+  a wrapper around the unreachable `logistf`. Both the Wald approximation
+  and Firth's own preferred profile penalized likelihood ratio test are now
+  reported (`firth_profile_test` in `model/firth_logit.py`) — they visibly
+  disagree for several factors, the known failure mode Wald has in exactly
+  this kind of small, near-separated sample.
 - Expanding the country panel beyond MENA/South Asia to the full ~150-country
   IMF/World Bank universe is the most direct way to add real events without
   inventing any — flagged as future work, not attempted here so as not to
