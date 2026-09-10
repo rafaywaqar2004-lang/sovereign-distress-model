@@ -15,8 +15,10 @@ qualitative judgment call.
 - **Real GDELT 2.0 Doc API data** (`fetch_shocks.py` → `shock_timelines_raw.json`):
   media tone and coverage volume around each event, fetched via GitHub
   Actions. GDELT's real, aggressive rate limiting means not every event
-  returns both a tone and a volume signal on a given run — only 6 of the
-  12 events have both, disclosed per-event rather than silently filled in.
+  returns a usable tone signal on a given run — currently 8 of the 12
+  events do (up from 6 on an earlier run, since the rate limiting is
+  stochastic — a re-fetch can genuinely pick up more), disclosed
+  per-event rather than silently filled in.
 - **Real historical daily FX data** (`fetch_fx.py` → `fx_timelines_raw.json`):
   after Frankfurter (ECB reference rates) was tried first and confirmed,
   via its own `/v1/currencies` list, to not cover the currencies needed,
@@ -31,16 +33,19 @@ qualitative judgment call.
 
 ## The real, honest finding
 
-The correlation (n=6, ρ=0.76) runs counter to naive intuition in places:
-worse media tone doesn't automatically mean bigger FX movement. Israel has
-the worst media tone in the current usable set but only a modest FX move,
-while Egypt has the mildest tone but the largest depreciation (a more
-freely-floating currency). Pegged or managed currencies (Lebanon, Iran
-officially, several Gulf states) can show large tone swings with little
-real FX movement regardless of event severity — a country's exchange-rate
-regime matters as much as the shock itself, exactly the kind of nuance a
-real event study should surface. This is re-derived from whatever data is
-actually fetched each run, not assumed to match an earlier, smaller sample.
+The correlation (n=8, ρ=0.37) is real but modest — and notably weaker than
+an earlier fetch's n=6 sample (ρ=0.76), a real illustration of how unstable
+a correlation estimate still is at this sample size, not a sign either
+number was computed wrong. Israel has the worst media tone in the current
+usable set but only a modest FX move, while Egypt has the mildest tone but
+the largest depreciation (a more freely-floating currency) — worse media
+tone doesn't automatically mean bigger FX movement. Pegged or managed
+currencies (Lebanon, Iran officially, several Gulf states) can show large
+tone swings with little real FX movement regardless of event severity — a
+country's exchange-rate regime matters as much as the shock itself, exactly
+the kind of nuance a real event study should surface. This is re-derived
+from whatever data is actually fetched each run, not assumed to match an
+earlier, smaller sample.
 
 ## Running it
 
@@ -57,7 +62,7 @@ developed in.
 
 ## Limitations
 
-- **n=6 usable of 12 real events fetched.** Not a sample size to draw a
+- **n=8 usable of 12 real events fetched.** Not a sample size to draw a
   statistical conclusion from. This is a real, correctly-computed
   correlation on real data, not a validated predictive relationship, that
   would need dozens of events.

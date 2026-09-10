@@ -12,14 +12,14 @@
     "label": "Sri Lanka pre-emptive default",
     "event_date": "2022-04-12",
     "gdelt_avg_tone_post": -2.099475,
-    "gdelt_peak_volume_post": 0.0419,
+    "gdelt_peak_volume_post": null,
     "fx_pct_change": 10.104687342931188
   },
   {
     "country_code": "AFG",
     "label": "Fall of Kabul / Taliban takeover",
     "event_date": "2021-08-15",
-    "gdelt_avg_tone_post": -2.5171375000000005,
+    "gdelt_avg_tone_post": null,
     "gdelt_peak_volume_post": 0.0807,
     "fx_pct_change": 6.672921759364433
   },
@@ -44,14 +44,14 @@
     "label": "Turkish lira currency crisis",
     "event_date": "2018-08-10",
     "gdelt_avg_tone_post": -1.317625,
-    "gdelt_peak_volume_post": null,
+    "gdelt_peak_volume_post": 3.6109,
     "fx_pct_change": 19.39777637890169
   },
   {
     "country_code": "QAT",
     "label": "Qatar diplomatic crisis (Gulf blockade begins)",
     "event_date": "2017-06-05",
-    "gdelt_avg_tone_post": null,
+    "gdelt_avg_tone_post": -0.5735375,
     "gdelt_peak_volume_post": 0.0694,
     "fx_pct_change": 0.5683819161071224
   },
@@ -75,7 +75,7 @@
     "country_code": "ETH",
     "label": "Tigray war outbreak",
     "event_date": "2020-11-04",
-    "gdelt_avg_tone_post": null,
+    "gdelt_avg_tone_post": -0.8722125,
     "gdelt_peak_volume_post": 0.0142,
     "fx_pct_change": 0.5392693043039919
   },
@@ -84,14 +84,14 @@
     "label": "October 7 attack / start of the Israel-Gaza war",
     "event_date": "2023-10-07",
     "gdelt_avg_tone_post": -3.8954375,
-    "gdelt_peak_volume_post": null,
+    "gdelt_peak_volume_post": 1.0947,
     "fx_pct_change": 4.2196220471028205
   },
   {
     "country_code": "IRN",
     "label": "Mahsa Amini death / nationwide protests begin",
     "event_date": "2022-09-16",
-    "gdelt_avg_tone_post": null,
+    "gdelt_avg_tone_post": -3.498525,
     "gdelt_peak_volume_post": 0.1595,
     "fx_pct_change": 0.08626844359828653
   }
