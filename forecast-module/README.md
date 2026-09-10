@@ -28,7 +28,13 @@ data):
   coefficient not significant); the naive "no change" baseline actually
   beats it (2.93 vs 3.41 MAE). Consistent with well-documented growth
   literature — annual growth is close to a random walk at the country
-  level — reported honestly, not hidden.
+  level — reported honestly, not hidden. Tested, not just assumed: adding
+  the same four global drivers used for inflation below
+  (`test_growth_with_global_drivers.py`) roughly doubles the in-sample R²
+  (0.06 → 0.12, 3 of 4 drivers significant) but only modestly improves the
+  out-of-sample MAE (3.41 → 3.29) — still worse than the naive baseline.
+  Growth remains genuinely unforecastable in this data even with real
+  global conditions folded in, not an untested assumption.
 - **Inflation**: real, significant persistence (lag coefficient 0.574,
   p<0.0001, R²=0.298), genuinely beats the naive baseline (10.63 vs 14.12
   MAE). Independently confirmed in R (`forecast_validation.R`), matching

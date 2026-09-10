@@ -1366,7 +1366,10 @@ with tab4:
             f'<div class="card"><b style="color:{TEXT};">GDP Growth</b><br>'
             f'<span style="color:{BAD};font-family:\'IBM Plex Mono\',monospace;font-size:1.3rem;">No real signal</span><br>'
             f'<span style="color:{TEXT_MUTED};font-size:0.85rem;">Loses to a naive "no change" baseline (3.41 vs '
-            f'2.93 MAE on the real 2024 backtest) — consistent with well-documented growth literature.</span></div>',
+            f'2.93 MAE on the real 2024 backtest) — consistent with well-documented growth literature. Tested, not '
+            f'assumed: adding the same 4 global drivers used for inflation\'s stress test roughly doubles in-sample '
+            f'R² (0.06→0.12) but still loses to naive out-of-sample (3.29 MAE) — see forecast-module/'
+            f'test_growth_with_global_drivers.py.</span></div>',
             unsafe_allow_html=True)
     with r2:
         st.markdown(
