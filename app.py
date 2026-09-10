@@ -663,8 +663,8 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "Country Risk",
     "Geopolitical Shocks",
     "Forecast & Stress Test",
-    "Methodology & Validation",
     "Trade & Infrastructure",
+    "Methodology & Validation",
 ])
 
 with tab1:
@@ -1527,7 +1527,7 @@ with tab4:
         "oil shock are in the Methodology &amp; Validation tab."
     )
 
-with tab5:
+with tab6:
     st.markdown('<div class="section-title">Methodology &amp; Validation</div>', unsafe_allow_html=True)
     st.markdown(
         f'<p style="color:{TEXT_MUTED};">This project was built the same way MENASA and the Gulf Tracker were: '
@@ -1969,7 +1969,7 @@ with tab5:
         unsafe_allow_html=True,
     )
 
-with tab6:
+with tab5:
     st.markdown('<div class="section-title">Trade &amp; Infrastructure</div>', unsafe_allow_html=True)
     st.markdown(
         f'<p style="color:{TEXT_MUTED};">Real, well-established geo-economic context for the 34 tracked countries '
