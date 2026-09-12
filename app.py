@@ -498,7 +498,16 @@ from risk_architecture import SUB_INDICES, CONTEXT_ONLY, build_sub_indices  # no
 from peer_comparison import DIRECTION, latest_value_per_country, what_changed, top_movers  # noqa: E402
 from chokepoint_exposure import MARITIME_CHOKEPOINTS, CHOKEPOINT_EXPOSURE, exposure_summary  # noqa: E402
 from trade_infrastructure import TRADE_BLOCS, TRADE_BLOCS_SOURCE, MAJOR_PORTS, PORTS_SOURCE  # noqa: E402
+from government_structure import GOVERNMENT_STRUCTURE, GOVERNMENT_STRUCTURE_SOURCE  # noqa: E402
+from country_reference import (  # noqa: E402
+    STOCK_EXCHANGES, MAJOR_INDUSTRIES, MAJOR_INDUSTRIES_SOURCE, MAJOR_CITIES,
+)
 from firth_logit import firth_logit, firth_profile_test  # noqa: E402
+from country_profile import (  # noqa: E402
+    load_trade_commodities, top_commodities, load_development_indicators,
+    latest_indicator, DEV_INDICATOR_LABELS, SECTOR_INDICATOR_LABELS,
+    DEBT_COMPOSITION_LABELS,
+)
 
 
 # ============================================================
@@ -624,6 +633,20 @@ trade_net_countries = sorted(set(trade_net_df["reporter_code"])) if trade_net_df
 trade_net_shockable = (
     shockable_countries(trade_net_df, COUNTRIES.keys()) if trade_net_df is not None else []
 )
+
+
+@st.cache_data
+def load_trade_commodities_cached():
+    return load_trade_commodities(path=os.path.join(HERE, "data", "trade_commodities.csv"))
+
+
+@st.cache_data
+def load_development_indicators_cached():
+    return load_development_indicators(path=os.path.join(HERE, "data", "development_indicators.csv"))
+
+
+trade_commodities_df = load_trade_commodities_cached()
+development_indicators_df = load_development_indicators_cached()
 
 
 # ============================================================
@@ -2020,6 +2043,140 @@ with tab5:
         else:
             st.caption("No port data for this country.")
 
+    tf_col3, tf_col4 = st.columns(2)
+    with tf_col3:
+        st.markdown("#### Government &amp; political structure")
+        gov_info = GOVERNMENT_STRUCTURE.get(tf_country)
+        if gov_info:
+            st.markdown(
+                f'<div class="card"><b>{gov_info["type"]}</b><br>'
+                f'<span style="color:{TEXT_MUTED};font-size:0.85rem;">{gov_info["note"]}</span></div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.caption("No government-structure data for this country.")
+
+    with tf_col4:
+        st.markdown("#### Major cities")
+        cities = MAJOR_CITIES.get(tf_country, [])
+        if cities:
+            for c in cities:
+                st.markdown(
+                    f'<div class="card"><b>{c["name"]}</b><br>'
+                    f'<span style="color:{TEXT_MUTED};font-size:0.85rem;">{c["role"]}</span></div>',
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.caption("No city data for this country.")
+    st.caption(GOVERNMENT_STRUCTURE_SOURCE)
+
+    st.markdown("#### Economic structure &amp; main industries")
+    tf_col5, tf_col6 = st.columns(2)
+    with tf_col5:
+        industries_text = MAJOR_INDUSTRIES.get(tf_country)
+        exch_info = STOCK_EXCHANGES.get(tf_country)
+        exch_html = ""
+        if exch_info:
+            exch_html = f'<br><b>Stock exchange:</b> {exch_info["name"]}'
+            if exch_info.get("note"):
+                exch_html += f'<br><span style="color:{TEXT_MUTED};font-size:0.8rem;">{exch_info["note"]}</span>'
+        st.markdown(
+            f'<div class="card"><b>Major industries:</b> {industries_text or "No data"}{exch_html}</div>',
+            unsafe_allow_html=True,
+        )
+    with tf_col6:
+        sector_year = None
+        sector_rows = []
+        for col, label in SECTOR_INDICATOR_LABELS.items():
+            yr, val = latest_indicator(development_indicators_df, tf_country, col)
+            if yr is not None:
+                sector_year = yr
+                sector_rows.append((label, val))
+        if sector_rows:
+            lines = "".join(f"<li>{label}: {val:.1f}% of GDP</li>" for label, val in sector_rows)
+            st.markdown(
+                f'<div class="card"><b>Sector value-added, {sector_year}</b>'
+                f'<ul style="margin:0.3rem 0 0 1rem;">{lines}</ul></div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.caption("No real sector-composition data fetched yet for this country.")
+    st.caption(MAJOR_INDUSTRIES_SOURCE)
+
+    st.markdown("#### Top export &amp; import categories (real UN Comtrade data, by value)")
+    tf_col7, tf_col8 = st.columns(2)
+    for col, flow, flow_label in ((tf_col7, "X", "Exports"), (tf_col8, "M", "Imports")):
+        with col:
+            year_tc, top_tc = top_commodities(trade_commodities_df, tf_country, flow, n=5)
+            if top_tc:
+                lines = "".join(
+                    f'<li>{r["label"]} — ${r["value_usd"]/1e6:,.0f}M'
+                    + (f' ({r["pct_of_total"]:.0f}% of total)' if r["pct_of_total"] is not None else "")
+                    + "</li>"
+                    for r in top_tc
+                )
+                st.markdown(
+                    f'<div class="card"><b>Top {flow_label.lower()}, {year_tc}</b>'
+                    f'<ul style="margin:0.3rem 0 0 1rem;font-size:0.85rem;">{lines}</ul></div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.caption(f"No real Comtrade {flow_label.lower()} breakdown fetched for this country yet.")
+
+    st.markdown("#### Development indicators (World Bank WDI)")
+    dev_rows = []
+    for col, (label, unit) in DEV_INDICATOR_LABELS.items():
+        yr, val = latest_indicator(development_indicators_df, tf_country, col)
+        if yr is not None:
+            if unit == "$":
+                val_str = f"${val:,.0f}"
+            elif col == "population":
+                val_str = f"{val:,.0f}"
+            else:
+                val_str = f"{val:.1f}{unit}"
+            dev_rows.append((label, val_str, yr))
+    if dev_rows:
+        dev_cols = st.columns(4)
+        for i, (label, val_str, yr) in enumerate(dev_rows):
+            with dev_cols[i % 4]:
+                st.markdown(
+                    f'<div class="card"><div class="stat-num" style="font-size:1.3rem;">{val_str}</div>'
+                    f'<div class="stat-label">{label} ({yr})</div></div>',
+                    unsafe_allow_html=True,
+                )
+    else:
+        st.caption("No real development-indicator data fetched yet for this country.")
+
+    st.markdown("#### External debt composition, by creditor category")
+    debt_year, debt_total = latest_indicator(development_indicators_df, tf_country, "external_debt_stock_total_usd")
+    debt_rows = []
+    for col, label in DEBT_COMPOSITION_LABELS.items():
+        yr, val = latest_indicator(development_indicators_df, tf_country, col)
+        if yr is not None:
+            debt_rows.append((label, val, yr))
+    if debt_total is not None or debt_rows:
+        total_line = f'<b>Total external debt stock ({debt_year}):</b> ${debt_total/1e9:,.1f}B<br>' if debt_total is not None else ""
+        comp_lines = "".join(
+            f'<li>{label}: ${val/1e9:,.1f}B ({yr})</li>' for label, val, yr in debt_rows
+        )
+        st.markdown(
+            f'<div class="card">{total_line}'
+            f'<ul style="margin:0.3rem 0 0 1rem;">{comp_lines}</ul></div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            '<div class="honest-box"><span class="label">What this does and doesn\'t show</span>'
+            'This is a real breakdown by creditor <i>category</i> (multilateral institutions, official '
+            'bilateral governments collectively, private bondholders/banks) from the World Bank\'s live WDI '
+            'International Debt Statistics series. It is NOT a breakdown by individual creditor '
+            '<i>country</i> — a "X% owed specifically to China" style figure would need the World Bank\'s '
+            'separate International Debt Statistics query database, a different and more complex API not '
+            'fetched here. Stated honestly rather than implied.</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.caption("No real external-debt-composition data fetched yet for this country.")
+
     chokepoints, chokepoint_risk_tf = exposure_summary(tf_country)
     if chokepoints:
         names_tf = ", ".join(MARITIME_CHOKEPOINTS[k]["name"] for k in chokepoints)
@@ -2045,3 +2202,9 @@ with tab5:
             )
 
     st.caption(f"{TRADE_BLOCS_SOURCE} · {PORTS_SOURCE}")
+    st.caption(
+        "Top export/import categories: real UN Comtrade HS2-chapter data (data/fetch_trade_commodities.py). "
+        "Development indicators, sector composition, and external debt composition: real World Bank WDI data "
+        "(data/fetch_development_indicators.py). Both degrade to \"no data fetched yet\" rather than a "
+        "fabricated value for any country/series not covered."
+    )

@@ -23,7 +23,7 @@ jobs:
         working-directory: data
         env:
           PYTHONUNBUFFERED: "1"
-        timeout-minutes: 15
+        timeout-minutes: 40
         run: python -u fetch_development_indicators.py
 
       - name: Commit fetched data if anything changed
