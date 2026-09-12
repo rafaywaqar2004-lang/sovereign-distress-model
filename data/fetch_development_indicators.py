@@ -49,25 +49,25 @@ SECTOR_INDICATORS = {
     "NV.SRV.TOTL.ZS": "services_pct_gdp",
 }
 
-# External debt STOCK composition by broad creditor category -- WDI's real
-# International Debt Statistics series. This is the honest limit of what a
-# live, free, no-key source actually publishes: a breakdown by creditor
-# TYPE (multilateral institutions / official bilateral governments /
-# private bondholders / commercial banks), not by individual creditor
-# COUNTRY. WDI does not publish a "X% owed specifically to China" style
-# figure -- that level of granularity lives in the World Bank's separate
-# International Debt Statistics (IDS) query database (a different, more
-# complex API than this project's other fetches), not attempted here.
-# Disclosed explicitly in the app rather than silently only fetching the
-# category breakdown and implying it's the full picture.
+# External debt STOCK composition -- WDI's real International Debt
+# Statistics series. This is the honest limit of what this live, free,
+# no-key source actually publishes at the simple per-indicator API this
+# script otherwise uses throughout: a breakdown by borrower/guarantee type
+# (public & publicly-guaranteed vs. private non-guaranteed), not by
+# creditor TYPE (multilateral/bilateral/private) or individual creditor
+# COUNTRY. Four creditor-type codes (DT.DOD.MLAT.CD, DT.DOD.BLAT.CD,
+# DT.DOD.PRVT.CD, DT.DOD.PBND.CD) were tried in an earlier version of this
+# script and returned real, empty results for all 34 countries -- tested,
+# not just assumed to work, and dropped once confirmed dead rather than
+# left in to keep silently fetching nothing. A genuine creditor-type or
+# creditor-country breakdown (e.g. "X% owed to China") would need the
+# World Bank's separate International Debt Statistics (IDS) query
+# database, a different and more complex API not attempted here --
+# disclosed explicitly in the app rather than implied.
 DEBT_COMPOSITION_INDICATORS = {
     "DT.DOD.DECT.CD": "external_debt_stock_total_usd",
     "DT.DOD.DPPG.CD": "external_debt_public_publicly_guaranteed_usd",
     "DT.DOD.DPNG.CD": "external_debt_private_nonguaranteed_usd",
-    "DT.DOD.MLAT.CD": "external_debt_multilateral_usd",
-    "DT.DOD.BLAT.CD": "external_debt_bilateral_usd",
-    "DT.DOD.PRVT.CD": "external_debt_private_creditors_usd",
-    "DT.DOD.PBND.CD": "external_debt_bonds_usd",
 }
 
 INDICATORS = {**DEV_INDICATORS, **SECTOR_INDICATORS, **DEBT_COMPOSITION_INDICATORS}

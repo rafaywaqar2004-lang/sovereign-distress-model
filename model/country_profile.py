@@ -80,8 +80,6 @@ SECTOR_INDICATOR_LABELS = {
 }
 
 DEBT_COMPOSITION_LABELS = {
-    "external_debt_multilateral_usd": "Multilateral institutions (IMF, World Bank, etc.)",
-    "external_debt_bilateral_usd": "Bilateral (official, government-to-government)",
-    "external_debt_private_creditors_usd": "Private creditors",
-    "external_debt_bonds_usd": "of which: Bonds",
+    "external_debt_public_publicly_guaranteed_usd": "Public & publicly-guaranteed (PPG)",
+    "external_debt_private_nonguaranteed_usd": "Private, non-guaranteed (PNG)",
 }

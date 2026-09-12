@@ -2147,7 +2147,7 @@ with tab5:
     else:
         st.caption("No real development-indicator data fetched yet for this country.")
 
-    st.markdown("#### External debt composition, by creditor category")
+    st.markdown("#### External debt composition, by borrower/guarantee type")
     debt_year, debt_total = latest_indicator(development_indicators_df, tf_country, "external_debt_stock_total_usd")
     debt_rows = []
     for col, label in DEBT_COMPOSITION_LABELS.items():
@@ -2166,12 +2166,14 @@ with tab5:
         )
         st.markdown(
             '<div class="honest-box"><span class="label">What this does and doesn\'t show</span>'
-            'This is a real breakdown by creditor <i>category</i> (multilateral institutions, official '
-            'bilateral governments collectively, private bondholders/banks) from the World Bank\'s live WDI '
-            'International Debt Statistics series. It is NOT a breakdown by individual creditor '
-            '<i>country</i> — a "X% owed specifically to China" style figure would need the World Bank\'s '
-            'separate International Debt Statistics query database, a different and more complex API not '
-            'fetched here. Stated honestly rather than implied.</div>',
+            'This is a real breakdown by borrower/guarantee <i>type</i> (public &amp; publicly-guaranteed vs. '
+            'private non-guaranteed) from the World Bank\'s live WDI International Debt Statistics series. '
+            'It is NOT a breakdown by creditor <i>type</i> (multilateral vs. bilateral vs. private bondholders) '
+            'or by individual creditor <i>country</i> — a "X% owed specifically to China" style figure would '
+            'need the World Bank\'s separate International Debt Statistics query database, a different and '
+            'more complex API not fetched here. Four creditor-type indicator codes were tried first and '
+            'confirmed to return no real data for any of the 34 countries, so they were dropped rather than '
+            'left in place fetching nothing. Stated honestly rather than implied.</div>',
             unsafe_allow_html=True,
         )
     else:
