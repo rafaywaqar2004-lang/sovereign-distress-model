@@ -1,5 +1,15 @@
 # Sovereign Distress Model
 
+![EM Macro & Geopolitical Risk Engine — live app screenshot](docs/screenshot.png)
+
+> **Problem:** Can real macro/governance data actually predict which of 34 emerging markets heads into fiscal distress next — and do geopolitical shocks really move their currencies?
+> **Approach:** Three independently R-validated models — a panel logistic regression (with a from-scratch Firth's penalized regression to handle near-perfect separation from rare default events), a GDELT-vs-FX event study, and a panel AR(1) forecast with a live, interactive stress test — built on 15 years of real World Bank, GDELT, and market data across 34 countries.
+> **Result:** Model-implied default risk ranks countries against real, independent S&P ratings at Spearman ρ = 0.77; every model matches its R re-implementation almost to the decimal.
+>
+> **[Live app →](https://em-macro-geopolitical-risk-engine.onrender.com)**
+
+---
+
 **Phase 1 of the EM Macro & Geopolitical Risk Engine** — a panel-data
 probability model of sovereign fiscal/balance-of-payments distress across
 the same 34 MENA and South Asia economies the
