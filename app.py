@@ -11,6 +11,7 @@ Every number shown here is either loaded directly from a database/CSV this
 project's own pipeline produced, or computed live from real fitted model
 coefficients -- nothing on this page is invented for display purposes.
 """
+import base64
 import json
 import sqlite3
 import os
@@ -688,6 +689,28 @@ def country_outline_traces(world_geojson, max_ring_points=150):
         line=dict(width=0.6, color="rgba(255,255,255,0.14)"),
         hoverinfo="skip", showlegend=False,
     )
+
+
+# Must match generate_qgis_basemap.py's LON_RANGE/LAT_RANGE exactly, and the
+# same fixed viewport the Coverage map (tab1) and route map already use.
+ROUTE_BASEMAP_LON_RANGE = (-24, 98)
+ROUTE_BASEMAP_LAT_RANGE = (-12, 46)
+ROUTE_BASEMAP_PATH = os.path.join(HERE, "static", "route_map_basemap.png")
+
+
+@st.cache_data
+def route_basemap_data_uri():
+    """Base64-encodes the QGIS-rendered route-map basemap PNG
+    (generate_qgis_basemap.py) as a data URI so Plotly can place it via
+    add_layout_image without depending on Streamlit's static-file serving --
+    works identically in local dev and production. Returns None if the
+    basemap hasn't been generated yet, so the map still renders (just
+    without a background image) rather than raising."""
+    if not os.path.exists(ROUTE_BASEMAP_PATH):
+        return None
+    with open(ROUTE_BASEMAP_PATH, "rb") as f:
+        encoded = base64.b64encode(f.read()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
 
 
 @st.cache_data
@@ -1475,7 +1498,21 @@ with tab3:
                     "from the real trade-exposure percentages above, never from geographic distance."
                 )
                 fig_routes = go.Figure()
-                fig_routes.add_trace(country_outline_traces(load_world_geojson_cached()))
+                _route_basemap_uri = route_basemap_data_uri()
+                if _route_basemap_uri is not None:
+                    fig_routes.add_layout_image(
+                        dict(
+                            source=_route_basemap_uri,
+                            xref="x", yref="y",
+                            x=ROUTE_BASEMAP_LON_RANGE[0], y=ROUTE_BASEMAP_LAT_RANGE[1],
+                            sizex=ROUTE_BASEMAP_LON_RANGE[1] - ROUTE_BASEMAP_LON_RANGE[0],
+                            sizey=ROUTE_BASEMAP_LAT_RANGE[1] - ROUTE_BASEMAP_LAT_RANGE[0],
+                            xanchor="left", yanchor="top",
+                            sizing="stretch", layer="below",
+                        )
+                    )
+                else:
+                    fig_routes.add_trace(country_outline_traces(load_world_geojson_cached()))
                 shock_lat, shock_lon = COUNTRY_CAPITAL_COORDS.get(sel_shock_country, (None, None))
                 for _, row in top.iterrows():
                     key = frozenset((sel_shock_country, row["country_code"]))
