@@ -20,9 +20,9 @@ The tell: backtest output containing values of exactly `100.0` or `0.0`
 (rank extremes, not real percentages). Fixed by pivoting MENASA's real raw
 indicator values (`raw_data_long.csv` → `raw_panel.csv`) instead.
 
-**Real, honest findings**, backtested the honest way (trained on
-2010-2023, forecast 2024, compared to the real 2024 value already in the
-data):
+**Real, honest findings**, originally backtested on a single split (trained
+on 2010-2023, forecast 2024, compared to the real 2024 value already in
+the data):
 
 - **GDP growth**: essentially no real predictive power (R²=0.06, lag
   coefficient not significant); the naive "no change" baseline actually
@@ -36,9 +36,33 @@ data):
   Growth remains genuinely unforecastable in this data even with real
   global conditions folded in, not an untested assumption.
 - **Inflation**: real, significant persistence (lag coefficient 0.574,
-  p<0.0001, R²=0.298), genuinely beats the naive baseline (10.63 vs 14.12
-  MAE). Independently confirmed in R (`forecast_validation.R`), matching
-  Python almost exactly.
+  p<0.0001, R²=0.298), genuinely beat the naive baseline on that single
+  2024 split (10.63 vs 14.12 MAE). Independently confirmed in R
+  (`forecast_validation.R`), matching Python almost exactly.
+
+**A single train/test split is a one-shot draw, and it turned out to be a
+misleading one.** `rolling_backtest.py` repeats the exact same
+out-of-sample test across every real year from 2016-2025 (expanding-window
+refit each time, never seeing the test year's own data) instead of just
+2024. The result materially changes the honest conclusion above:
+
+- **GDP growth**: beat naive in only 5 of 10 walk-forward years; pooled
+  across all 307 country-years tested, the model narrowly edges naive out
+  (4.36 vs 4.91 MAE) — a much weaker and less consistent result than
+  either "no signal" or "real signal" would suggest on its own.
+- **Inflation**: also beat naive in only 5 of 10 walk-forward years, and
+  pooled across all 298 country-years, the naive baseline actually wins
+  (11.05 vs 9.74 MAE) — reversing the single-2024-year conclusion above.
+  The lag coefficient's statistical significance is real and unchanged;
+  it just isn't reliable enough, year to year, to consistently beat
+  "assume no change." Reported here exactly as it came out, including the
+  reversal, not quietly dropped in favor of the more flattering single-year
+  number.
+
+The single-split numbers above are kept for the historical record of what
+this project originally reported; the live app's Forecast & Stress Test
+tab now shows the full 2016-2025 walk-forward track record as the primary
+result.
 
 ## Part 2: stress-test layer (`stress_test.py`)
 

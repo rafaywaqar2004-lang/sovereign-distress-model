@@ -232,15 +232,16 @@ def load_phase2():
 def load_phase3():
     panel = pd.read_csv(os.path.join(HERE, "forecast-module", "raw_panel.csv"))
     backtest = pd.read_csv(os.path.join(HERE, "forecast-module", "backtest_2024_results.csv"))
+    rolling_backtest = pd.read_csv(os.path.join(HERE, "forecast-module", "rolling_backtest_results.csv"))
     coefs = pd.read_csv(os.path.join(HERE, "forecast-module", "stress_test_coefficients.csv"))
     with open(os.path.join(HERE, "forecast-module", "shock_drivers.json")) as f:
         drivers = json.load(f)
-    return panel, backtest, coefs, drivers
+    return panel, backtest, rolling_backtest, coefs, drivers
 
 
 phase1_panel, phase1_events = load_phase1()
 phase2_results, phase2_shocks, phase2_fx = load_phase2()
-phase3_panel, phase3_backtest, phase3_coefs, phase3_drivers = load_phase3()
+phase3_panel, phase3_backtest, phase3_rolling_backtest, phase3_coefs, phase3_drivers = load_phase3()
 
 
 # ============================================================
@@ -1426,20 +1427,54 @@ with tab4:
     with r1:
         st.markdown(
             f'<div class="card"><b style="color:{TEXT};">GDP Growth</b><br>'
-            f'<span style="color:{BAD};font-family:\'IBM Plex Mono\',monospace;font-size:1.3rem;">No real signal</span><br>'
-            f'<span style="color:{TEXT_MUTED};font-size:0.85rem;">Loses to a naive "no change" baseline (3.41 vs '
-            f'2.93 MAE on the real 2024 backtest) — consistent with well-documented growth literature. Tested, not '
-            f'assumed: adding the same 4 global drivers used for inflation\'s stress test roughly doubles in-sample '
-            f'R² (0.06→0.12) but still loses to naive out-of-sample (3.29 MAE) — see forecast-module/'
-            f'test_growth_with_global_drivers.py.</span></div>',
+            f'<span style="color:{WARN};font-family:\'IBM Plex Mono\',monospace;font-size:1.3rem;">Mixed, inconsistent signal</span><br>'
+            f'<span style="color:{TEXT_MUTED};font-size:0.85rem;">Beat the naive "no change" baseline in only 5 of '
+            f'10 walk-forward test years (2016-2025), though pooled across all 307 country-years the model edges '
+            f'naive out (4.36 vs 4.91 MAE) — see the track record below. The single-year 2024 snapshot alone '
+            f'(3.41 vs 2.93, a naive win) would have told a different, equally misleading story either way; this '
+            f'is exactly why the walk-forward test replaced it. Adding the same 4 global drivers used for '
+            f'inflation\'s stress test roughly doubles in-sample R² (0.06→0.12) but still loses to naive '
+            f'out-of-sample (3.29 MAE) — see forecast-module/test_growth_with_global_drivers.py.</span></div>',
             unsafe_allow_html=True)
     with r2:
         st.markdown(
             f'<div class="card"><b style="color:{TEXT};">Inflation</b><br>'
-            f'<span style="color:{GOOD};font-family:\'IBM Plex Mono\',monospace;font-size:1.3rem;">Real signal (R²=0.30)</span><br>'
-            f'<span style="color:{TEXT_MUTED};font-size:0.85rem;">Beats the naive baseline by 25% (10.63 vs 14.12 '
-            f'MAE). Lag coefficient 0.574, p&lt;0.0001 — genuine, significant persistence.</span></div>',
+            f'<span style="color:{WARN};font-family:\'IBM Plex Mono\',monospace;font-size:1.3rem;">Mixed, inconsistent signal</span><br>'
+            f'<span style="color:{TEXT_MUTED};font-size:0.85rem;">Beat the naive baseline in only 5 of 10 '
+            f'walk-forward test years, and pooled across all 298 country-years the naive baseline actually wins '
+            f'(11.05 vs 9.74 MAE). The 2024 single-year backtest this project originally reported (10.63 vs 14.12, '
+            f'a 25% model win) was a real but non-representative year — the honest, more rigorous 10-year track '
+            f'record below supersedes it. The lag coefficient itself (0.574, p&lt;0.0001) remains genuinely '
+            f'significant — persistence is real — it just isn\'t enough on its own to reliably beat "assume no '
+            f'change" year over year.</span></div>',
             unsafe_allow_html=True)
+
+    # ============================================================
+    # WALK-FORWARD TRACK RECORD -- replaces the single train<=2023/test=2024
+    # split above with a real repeated out-of-sample test: refit on an
+    # expanding window and forecast each year from 2016-2025 in turn, then
+    # compare to the REAL value already in raw_panel.csv for that year.
+    # Built specifically because a single train/test split is a lucky-or-
+    # unlucky one-shot draw -- see forecast-module/rolling_backtest.py.
+    # ============================================================
+    st.markdown("#### Track record — walk-forward backtest, 2016-2025")
+    st.caption(
+        "For each test year, the AR(1) panel is refit using only years strictly before it (an expanding window, "
+        "never seeing the test year's own data), then forecasts that year and compares to the real value already "
+        "in raw_panel.csv. Repeated for all 10 real years available. This is the honest bar a forecasting tool "
+        "has to clear — a single good year does not make a track record."
+    )
+    tr1, tr2 = st.columns(2)
+    for tr_col, variable, label in [(tr1, "gdp_growth", "GDP Growth"), (tr2, "inflation", "Inflation")]:
+        with tr_col:
+            var_bt = phase3_rolling_backtest[phase3_rolling_backtest["variable"] == variable]
+            by_year = var_bt.groupby("test_year").agg(model_mae=("abs_error", "mean"), naive_mae=("naive_abs_error", "mean")).reset_index()
+            fig_tr = go.Figure()
+            fig_tr.add_trace(go.Scatter(x=by_year["test_year"], y=by_year["model_mae"], name="AR(1) model", mode="lines+markers", line=dict(color=ACCENT)))
+            fig_tr.add_trace(go.Scatter(x=by_year["test_year"], y=by_year["naive_mae"], name="Naive (no change)", mode="lines+markers", line=dict(color=TEXT_MUTED, dash="dot")))
+            n_beat = int((by_year["model_mae"] < by_year["naive_mae"]).sum())
+            fig_tr.update_layout(title=f"{label}: model beat naive in {n_beat} of {len(by_year)} years", yaxis_title="MAE (lower is better)")
+            st.plotly_chart(style_chart(fig_tr, height=320), use_container_width=True)
 
     st.markdown("#### Interactive stress test")
     infl_backtest = phase3_backtest[phase3_backtest["variable"] == "inflation"].copy()
