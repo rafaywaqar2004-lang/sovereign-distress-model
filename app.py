@@ -659,6 +659,38 @@ def load_qgis_trade_routes():
 
 
 @st.cache_data
+def load_world_geojson_cached():
+    """Same bundled Natural Earth country boundaries the Coverage map (tab1)
+    uses -- reused here so the trade-route map has geographic context too,
+    rather than floating lines on an empty background."""
+    with open(os.path.join(HERE, "map-data", "countries.geojson")) as f:
+        return json.load(f)
+
+
+def country_outline_traces(world_geojson, max_ring_points=150):
+    """Faint country-outline go.Scatter traces (no fill), decimated the same
+    way build_coverage_map() decimates its own polygon fills -- purely for
+    orientation, not a data layer."""
+    traces_x, traces_y = [], []
+    for feat in world_geojson["features"]:
+        geom = feat["geometry"]
+        rings = [geom["coordinates"][0]] if geom["type"] == "Polygon" else [poly[0] for poly in geom["coordinates"]]
+        for ring in rings:
+            step = max(1, len(ring) // max_ring_points)
+            decimated = ring[::step]
+            if traces_x:
+                traces_x.append(None)
+                traces_y.append(None)
+            traces_x.extend(pt[0] for pt in decimated)
+            traces_y.extend(pt[1] for pt in decimated)
+    return go.Scatter(
+        x=traces_x, y=traces_y, mode="lines",
+        line=dict(width=0.6, color="rgba(255,255,255,0.14)"),
+        hoverinfo="skip", showlegend=False,
+    )
+
+
+@st.cache_data
 def load_trade_commodities_cached():
     return load_trade_commodities(path=os.path.join(HERE, "data", "trade_commodities.csv"))
 
@@ -1443,6 +1475,7 @@ with tab3:
                     "from the real trade-exposure percentages above, never from geographic distance."
                 )
                 fig_routes = go.Figure()
+                fig_routes.add_trace(country_outline_traces(load_world_geojson_cached()))
                 shock_lat, shock_lon = COUNTRY_CAPITAL_COORDS.get(sel_shock_country, (None, None))
                 for _, row in top.iterrows():
                     key = frozenset((sel_shock_country, row["country_code"]))
@@ -1465,10 +1498,15 @@ with tab3:
                         textfont=dict(color=TEXT_MUTED, size=10),
                         hoverinfo="skip", showlegend=False,
                     ))
-                fig_routes.update_xaxes(visible=False, showgrid=False, zeroline=False)
-                fig_routes.update_yaxes(visible=False, showgrid=False, zeroline=False, scaleanchor="x", scaleratio=1)
+                # Same fixed region bounding box as the Coverage map (tab1) --
+                # this project's own established viewport for these 34
+                # countries, rather than autoscaling to the routes' own extent
+                # (which zoomed out to nearly the whole world for some
+                # shocked-country selections).
+                fig_routes.update_xaxes(range=[-24, 98], visible=False, showgrid=False, zeroline=False, fixedrange=True)
+                fig_routes.update_yaxes(range=[-12, 46], visible=False, showgrid=False, zeroline=False, fixedrange=True, scaleanchor="x", scaleratio=1)
                 fig_routes.update_layout(
-                    plot_bgcolor=SURFACE, paper_bgcolor=SURFACE, margin=dict(l=0, r=0, t=10, b=0), height=420,
+                    plot_bgcolor=BG, paper_bgcolor="rgba(0,0,0,0)", margin=dict(l=0, r=0, t=10, b=0), height=420,
                 )
                 st.plotly_chart(fig_routes, use_container_width=True)
 
