@@ -1622,6 +1622,17 @@ with tab6:
         "GitHub Actions) before switching to yfinance — see the data-quality issues section below and each "
         "module's own README for the full diagnostic trail."
     )
+    st.caption(
+        "Why 2024, not 2025 or 2026: the World Bank's Worldwide Governance Indicators — 5 of this model's 11 "
+        "real factors — have not yet been published for 2025 as of this app's last data refresh (WGI is "
+        "released roughly a year behind WDI's economic series, and this project checks for the new release "
+        "rather than assuming a date). Real 2025 economic data (current account, reserves, GDP growth, "
+        "inflation, FX depreciation) is already fetched and sitting in this project's own raw_panel.csv, but "
+        "it isn't used to extend Phase 1's panel past 2024 because doing so would pair real 2025 economics with "
+        "stale 2024 governance scores under a 2025 label — exactly the kind of quiet mismatch this page's own "
+        "editorial standard exists to rule out. Panel coverage will move to 2025 the same way it always has: "
+        "when the real World Bank release lands."
+    )
 
     with st.expander("Phase 1 — Sovereign Distress Model: data sources, method, limitations", expanded=False):
         st.markdown(

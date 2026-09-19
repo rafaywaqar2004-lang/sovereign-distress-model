@@ -15,10 +15,12 @@ scale -- that IS the real World Bank WGI percentile convention, not a bug.
 
 So: governance factors come from driver_history.csv (unchanged); the 5
 economic factors are swapped in from forecast-module/raw_panel.csv's real
-raw values instead. Verified before this swap: identical missingness
-pattern in both sources for all 5 economic columns (91/96/31/44/64 missing
-respectively) -- this is a pure value-scale correction, not a change to
-which country-years are included.
+raw values instead. This is a pure value-scale correction, not a change to
+which country-years are included -- guarded below by checking that the
+swap never trades a real driver_history.csv value for a missing raw_panel.csv
+one (raw_panel.csv's own coverage can improve release over release as WDI
+itself revises/backfills, so exact missingness-count equality isn't the
+right invariant to hold it to).
 
 Outcome (Y): the real, sourced distress events in distress_events.py.
 
@@ -40,13 +42,16 @@ ECON_COLS = [
 driver = pd.read_csv("driver_history.csv")
 raw = pd.read_csv("../forecast-module/raw_panel.csv")
 
-before_missing = driver[ECON_COLS].isna().sum()
-after_missing_check = raw.merge(driver[["country_code", "year"]], on=["country_code", "year"], how="inner")[ECON_COLS].isna().sum()
-assert (before_missing == after_missing_check).all(), (
-    "Missingness pattern differs between driver_history.csv and raw_panel.csv for the 5 economic factors -- "
-    "the swap below assumes they're identical (verified separately before writing this script). If this "
-    "assertion ever fails, investigate before proceeding; don't silently swap in a source with different coverage."
+check = driver[["country_code", "year"] + ECON_COLS].merge(
+    raw[["country_code", "year"] + ECON_COLS], on=["country_code", "year"], suffixes=("_driver", "_raw")
 )
+for col in ECON_COLS:
+    lost = check[col + "_driver"].notna() & check[col + "_raw"].isna()
+    assert not lost.any(), (
+        f"raw_panel.csv is missing real {col} values that driver_history.csv has for "
+        f"{lost.sum()} country-year(s) -- the swap below would silently drop real data. "
+        "Investigate before proceeding."
+    )
 
 driver_gov_and_ids = driver.drop(columns=ECON_COLS)
 raw_econ = raw[["country_code", "year"] + ECON_COLS]
