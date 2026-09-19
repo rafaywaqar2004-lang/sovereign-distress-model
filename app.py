@@ -620,6 +620,7 @@ displacement_latest = load_displacement()
 # the fetch hasn't run yet.
 # ============================================================
 from trade_network import load_trade_network, trade_concentration, spillover_exposure, shockable_countries  # noqa: E402
+from country_coordinates import COUNTRY_CAPITAL_COORDS  # noqa: E402
 
 
 @st.cache_data
@@ -636,6 +637,25 @@ trade_net_countries = sorted(set(trade_net_df["reporter_code"])) if trade_net_df
 trade_net_shockable = (
     shockable_countries(trade_net_df, COUNTRIES.keys()) if trade_net_df is not None else []
 )
+
+
+@st.cache_data
+def load_qgis_trade_routes():
+    """Real QGIS output (QgsDistanceArea's direct geodesic solver -- see
+    generate_qgis_geodata.py's own docstring): a true great-circle path
+    between every pair of tracked countries with a real bilateral trade
+    edge. Generated offline, not computed at request time; returns None
+    if the file hasn't been generated yet."""
+    path = os.path.join(HERE, "geodata", "qgis_trade_routes.geojson")
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        gj = json.load(f)
+    routes = {}
+    for feat in gj["features"]:
+        p = feat["properties"]
+        routes[frozenset((p["country_a"], p["country_b"]))] = feat["geometry"]["coordinates"]
+    return routes
 
 
 @st.cache_data
@@ -1405,6 +1425,52 @@ with tab3:
                 "shocked country (an import-demand shock). Both are real, computed from actual bilateral trade "
                 "values — never combined into one invented composite number."
             )
+
+            _qgis_routes = load_qgis_trade_routes()
+            if _qgis_routes is None:
+                st.info(
+                    "Real geodesic route geometry not found (geodata/qgis_trade_routes.geojson) -- run "
+                    "`python generate_qgis_geodata.py` to generate it.",
+                    icon="⚠️",
+                )
+            else:
+                st.markdown("##### Real trade routes to the top-exposed countries")
+                st.caption(
+                    "Real great-circle geometry (QGIS's `QgsDistanceArea` direct geodesic solver -- see "
+                    "`generate_qgis_geodata.py`'s own docstring) connecting each capital, drawn as a genuinely "
+                    "curved geodesic path rather than a straight Cartesian line. The route itself is purely "
+                    "cartographic -- which countries are connected, and how thick each line is, comes entirely "
+                    "from the real trade-exposure percentages above, never from geographic distance."
+                )
+                fig_routes = go.Figure()
+                shock_lat, shock_lon = COUNTRY_CAPITAL_COORDS.get(sel_shock_country, (None, None))
+                for _, row in top.iterrows():
+                    key = frozenset((sel_shock_country, row["country_code"]))
+                    coords = _qgis_routes.get(key)
+                    if coords is None:
+                        continue
+                    exposure = row["max_exposure_pct"] or 0
+                    fig_routes.add_trace(go.Scatter(
+                        x=[c[0] for c in coords], y=[c[1] for c in coords],
+                        mode="lines", line=dict(width=1 + exposure / 8, color=ACCENT),
+                        opacity=0.7, hoverinfo="text",
+                        text=f"{COUNTRIES.get(sel_shock_country)} ↔ {row['country']}: {exposure:.1f}% max exposure",
+                        showlegend=False,
+                    ))
+                if shock_lat is not None:
+                    fig_routes.add_trace(go.Scatter(
+                        x=[shock_lon], y=[shock_lat], mode="markers+text",
+                        marker=dict(size=12, color=ACCENT2, line=dict(width=1, color=SURFACE)),
+                        text=[COUNTRIES.get(sel_shock_country)], textposition="top center",
+                        textfont=dict(color=TEXT_MUTED, size=10),
+                        hoverinfo="skip", showlegend=False,
+                    ))
+                fig_routes.update_xaxes(visible=False, showgrid=False, zeroline=False)
+                fig_routes.update_yaxes(visible=False, showgrid=False, zeroline=False, scaleanchor="x", scaleratio=1)
+                fig_routes.update_layout(
+                    plot_bgcolor=SURFACE, paper_bgcolor=SURFACE, margin=dict(l=0, r=0, t=10, b=0), height=420,
+                )
+                st.plotly_chart(fig_routes, use_container_width=True)
 
 with tab4:
     st.markdown('<div class="section-title">Forecast &amp; Stress Test</div>', unsafe_allow_html=True)

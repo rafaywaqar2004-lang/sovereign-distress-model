@@ -187,6 +187,59 @@ real distress history was 0.24 (inverted) before the fix, 0.76 (correctly
 directed) after. Phase 1's actual predictive model was never affected — it
 never assumed a direction to begin with. See `model/validate_sub_indices.py`.
 
+## Real geodesic trade-route geometry (QGIS) — done
+
+The trade spillover network (`model/trade_network.py`) is real UN Comtrade
+bilateral data end to end -- but the "Real trade routes" map under it needed
+a way to draw the connecting lines that was cartographically correct, not
+just two points joined with a straight Cartesian segment (which distorts
+badly at this map's scale and equirectangular projection). `generate_qgis_
+geodata.py` computes the actual great-circle path between each pair of
+tracked countries' capitals using real QGIS (`QgsDistanceArea`'s direct
+geodesic solver -- `bearing()` for the initial azimuth, then
+`computeSpheroidProject()` stepped along increasing distance at that fixed
+azimuth, the same algorithm class used for the companion Gulf AI Tracker's
+and MENASA Risk Monitor's own real-QGIS work), for every one of the 470
+real tracked-to-tracked trade edges in `data/trade_network.csv` (a further
+6 real rows report a country trading "with itself" -- a genuine Comtrade
+mirror-statistics quirk, not a route -- and are excluded, caught by this
+addition's own validation script below).
+
+This is deliberately **not** the same kind of chokepoint-proximity analysis
+those two sibling projects did. This project's own `data/chokepoint_
+exposure.py` explicitly argues against proximity-based reasoning ("use
+actual trade/shipping relationships when possible, not proximity
+assumptions"), and there was no reason to contradict that here. So QGIS is
+applied to what this project actually measures instead -- real bilateral
+trade relationships -- and its job is purely cartographic: which countries
+are connected, and how thick each line is on the map, comes entirely from
+the real trade-exposure percentages `spillover_exposure()` already
+computes; QGIS only supplies the geometrically correct curve connecting
+them. Country capital coordinates (`data/country_coordinates.py`) are
+copied from the companion overeign-risk-index project, the same "copied,
+not re-researched" precedent `chokepoint_exposure.py` already established
+for the chokepoint citations.
+
+Output is checked into `geodata/qgis_trade_routes.geojson` -- an
+offline/build-time step (QGIS itself is roughly 1GB of Qt/GDAL/GRASS
+dependencies, not something to require on Render's free tier at runtime).
+Regenerate after `data/trade_network.csv` changes: install QGIS
+(`apt-get install qgis` on Debian/Ubuntu) and run
+`QT_QPA_PLATFORM=offscreen python3 generate_qgis_geodata.py` (with the
+Python binary QGIS's own bindings were installed for, e.g.
+`/usr/bin/python3.12` on Ubuntu 24.04). `validate_qgis_routes.py` (same
+precedent as `model/validate_sub_indices.py`) checks the committed output
+against an independent `pyproj` calculation: for every route, the sum of
+two independently-measured geodesic segments either side of the route's
+own midpoint should match the QGIS-reported total distance -- true only if
+the midpoint genuinely sits on the great-circle path, not a linear
+(Cartesian) interpolation that only looks curved. All 470 routes pass,
+largest disagreement 50 meters on routes spanning hundreds to thousands of
+kilometers. This same check caught a real bug during development: 6 raw
+Comtrade rows reporting a country trading "with itself" had slipped into
+the route list as zero-length geometry, fixed by excluding
+`reporter_code == partner_code` rows before generating routes.
+
 ## Research summary
 
 This section mirrors the structure of an empirical research paper, so the
