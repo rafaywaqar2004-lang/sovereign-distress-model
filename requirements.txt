@@ -4,3 +4,4 @@ statsmodels
 linearmodels
 streamlit
 plotly
+fpdf2

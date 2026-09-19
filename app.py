@@ -22,6 +22,8 @@ import plotly.graph_objects as go
 import statsmodels.api as sm
 from linearmodels.panel import PanelOLS
 
+from pdf_export import generate_country_pdf
+
 st.set_page_config(page_title="EM Macro & Geopolitical Risk Engine", page_icon="📉", layout="wide")
 
 HERE = os.path.dirname(__file__)
@@ -1114,6 +1116,43 @@ with tab2:
         st.caption(
             "Every line above is generated from the real numbers computed elsewhere on this page for the selected "
             "country and year — not separately written or invented."
+        )
+
+        # ============================================================
+        # PDF EXPORT -- formats the exact same real numbers already computed
+        # above (predicted_prob, avg_prob, contrib_df, chan_latest, bench_row,
+        # phase1_events) into a downloadable one-page brief. No new
+        # computation happens here.
+        # ============================================================
+        country_events_raw = phase1_events[phase1_events["country_code"] == sel_country]
+        pdf_events = list(zip(country_events_raw["year"], country_events_raw["event_type"], country_events_raw["detail"]))
+        pdf_bytes = generate_country_pdf(
+            country_name=COUNTRIES.get(sel_country, sel_country),
+            country_code=sel_country,
+            latest_year=latest_year,
+            predicted_prob=predicted_prob,
+            avg_prob=avg_prob,
+            top_driver=(top_driver["Factor"], top_driver["Contribution"]),
+            bottom_driver=(bottom_driver["Factor"], bottom_driver["Contribution"]),
+            contrib_rows=list(zip(contrib_df["Factor"], contrib_df["Contribution"])),
+            n_events=len(pdf_events),
+            confidence_label="Low" if phase1_in_sample_val["n_events"] < 20 else "Moderate",
+            chan_year=chan_year if not chan_latest.empty else None,
+            trade_openness=trade_openness if not chan_latest.empty else None,
+            reserves_months=row["reserves_months_imports"] if not chan_latest.empty and pd.notna(row["reserves_months_imports"]) else None,
+            current_account=row["current_account_pct_gdp"] if not chan_latest.empty and pd.notna(row["current_account_pct_gdp"]) else None,
+            fdi_pct_gdp=row["fdi_net_inflows_pct_gdp"] if not chan_latest.empty and pd.notna(row["fdi_net_inflows_pct_gdp"]) else None,
+            sp_rating=bench_row.iloc[0]["sp_rating"] if not bench_row.empty and pd.notna(bench_row.iloc[0]["sp_numeric"]) else None,
+            rating_rank=rank if not bench_row.empty and pd.notna(bench_row.iloc[0]["sp_numeric"]) else None,
+            rating_total=len(phase1_benchmark) if not bench_row.empty and pd.notna(bench_row.iloc[0]["sp_numeric"]) else None,
+            events=pdf_events,
+            total_countries=len(country_options),
+        )
+        st.download_button(
+            label=f"📄 Download Country Risk Brief — {COUNTRIES.get(sel_country, sel_country)} (PDF)",
+            data=pdf_bytes,
+            file_name=f"{COUNTRIES.get(sel_country, sel_country).replace(' ', '_')}_Sovereign_Distress_Brief.pdf",
+            mime="application/pdf",
         )
 
     # ============================================================
