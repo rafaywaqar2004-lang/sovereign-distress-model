@@ -243,6 +243,15 @@ phase1_panel, phase1_events = load_phase1()
 phase2_results, phase2_shocks, phase2_fx = load_phase2()
 phase3_panel, phase3_backtest, phase3_rolling_backtest, phase3_coefs, phase3_drivers = load_phase3()
 
+# Computed live from phase1_panel itself -- not hardcoded -- so this label
+# never goes stale again the way the old fixed "2010-2024" string did (see
+# the Sept 2026 fix: WGI 2025 landed in the real World Bank release this
+# panel is built from, and this line picked it up automatically).
+PANEL_YEAR_RANGE = f"{int(phase1_panel['year'].min())}–{int(phase1_panel['year'].max())}"
+_countries_by_year = phase1_panel.groupby("year")["country_code"].nunique()
+_n_countries_latest_year = int(_countries_by_year.iloc[-1])
+_n_countries_prior_range = f"{int(_countries_by_year.iloc[:-1].min())}-{int(_countries_by_year.iloc[:-1].max())}"
+
 
 # ============================================================
 # LIVE PHASE 1 MODEL FIT -- refits the exact same primary specification as
@@ -274,6 +283,8 @@ def fit_phase1_model(panel_df, outcome_col):
 
 phase1_result, phase1_complete = fit_phase1_model(phase1_panel, "imf_program_entry")
 phase1_factor_means = phase1_complete[PRIMARY_FACTOR_COLS].mean()
+_n_obs_complete = len(phase1_complete)
+_n_events_retained = int((phase1_complete["sovereign_default"] == 1).sum() + (phase1_complete["imf_program_entry"] == 1).sum())
 
 
 def _manual_auc(pos, neg):
@@ -295,7 +306,7 @@ def historical_validation(panel_df):
     rather than blended into one number, because they answer different
     questions:
 
-    1. IN-SAMPLE fit statistics on the full 355-observation primary model
+    1. IN-SAMPLE fit statistics on the full complete-case primary model
        (same data used to fit AND evaluate). This measures how well the
        fitted model discriminates the events it was fit on -- informative,
        but a real overfitting risk with only 12 positive events and 10
@@ -303,9 +314,10 @@ def historical_validation(panel_df):
        such everywhere it's shown.
 
     2. A genuine OUT-OF-SAMPLE temporal holdout: refit using only years
-       <=2021 (4 real events -- an honestly thin training set), then score
-       the fitted model's predictions against the real 2022-2024 outcomes
-       it never saw. This is a real backtest, not a claim of a working
+       <=2021 (a thin training set), then score the fitted model's
+       predictions against the real post-2021 outcomes (whatever years the
+       current panel actually extends to) it never saw. This is a real
+       backtest, not a claim of a working
        early-warning system -- the raw predicted probabilities in the
        holdout are all near zero with no country clearly flagged, which is
        itself the honest finding, not hidden here.
@@ -332,7 +344,8 @@ def historical_validation(panel_df):
     train = complete[complete["year"] <= 2021]
     test = complete[complete["year"] > 2021].copy()
     oos = {"train_n": len(train), "train_events": int(train["imf_program_entry"].sum()),
-           "test_n": len(test), "test_events": int(test["imf_program_entry"].sum())}
+           "test_n": len(test), "test_events": int(test["imf_program_entry"].sum()),
+           "test_year_range": f"{int(test['year'].min())}–{int(test['year'].max())}" if len(test) else "n/a"}
     try:
         X_train = sm.add_constant(train[PRIMARY_FACTOR_COLS])
         y_train = train["imf_program_entry"]
@@ -674,9 +687,9 @@ _n_shocks_total = len(phase2_shocks)
 stat_cols = st.columns(4)
 stats = [
     (str(_n_countries), "Countries tracked"),
-    (str(_n_events), "Real distress events (2010-2024)"),
+    (str(_n_events), "Real distress events (latest 2024)"),
     (f"{_n_shocks} of {_n_shocks_total}", "Shocks with real FX + GDELT data"),
-    ("2010–2024", "Panel coverage"),
+    (PANEL_YEAR_RANGE, "Panel coverage"),
 ]
 for col, (num, label) in zip(stat_cols, stats):
     with col:
@@ -697,7 +710,7 @@ with tab1:
     # ============================================================
     # COVERAGE MAP -- a real map of the 34 tracked economies, colored by each
     # country's own real, counted distress-event total (sovereign defaults +
-    # IMF program entries, 2010-2024) rather than an invented "risk score"
+    # IMF program entries, latest 2024) rather than an invented "risk score"
     # this phase's models don't actually produce as a single number.
     #
     # Drawn as plain filled polygons on a Cartesian lon/lat plot from real,
@@ -801,7 +814,7 @@ with tab1:
             line_color = accent if tracked else border
             line_width = 0.9 if tracked else 0.6
             hover = (
-                f"<b>{name}</b><br>Real distress events (2010–2024): {count}"
+                f"<b>{name}</b><br>Real distress events (latest 2024): {count}"
                 if tracked else f"<b>{name}</b><br>Outside this project's 34-country panel"
             )
 
@@ -841,7 +854,7 @@ with tab1:
     )
     st.caption(
         "Colored by each country's own real, counted total of sovereign defaults and IMF program entries "
-        "in this panel (2010–2024) — not an invented composite risk score. All 34 tracked countries are outlined; "
+        "in this panel (latest event 2024) — not an invented composite risk score. All 34 tracked countries are outlined; "
         "21 of them have 0 real events in this panel and show as a dim tint, not the same plain gray as the "
         "countries genuinely outside this project's 34-economy panel. Equirectangular projection, not a precision GIS map."
     )
@@ -919,7 +932,7 @@ with tab2:
     st.markdown(
         f'<p style="color:{TEXT_MUTED};">A panel logistic regression predicting two real, sourced outcomes: '
         f'sovereign default and formal IMF program entry. Primary specification excludes <code>debt_to_gdp</code> '
-        f'deliberately — trained on 355 observations, 14 of 17 real events retained.</p>',
+        f'deliberately — trained on {_n_obs_complete} observations, {_n_events_retained} of {_n_events} real events retained.</p>',
         unsafe_allow_html=True,
     )
 
@@ -949,7 +962,7 @@ with tab2:
             unsafe_allow_html=True,
         )
 
-    st.markdown("#### Real distress events (2010–2024)")
+    st.markdown("#### Real distress events (latest 2024)")
     ev_display = phase1_events.copy()
     ev_display["country"] = ev_display["country_code"].map(COUNTRIES)
     ev_display = ev_display[["country", "year", "event_type", "detail"]].sort_values("year")
@@ -1670,19 +1683,19 @@ with tab6:
     st.markdown("#### Data sources")
     provenance = pd.DataFrame([
         {"Source": "World Bank WDI", "Used for": "Macro indicators (current account, reserves, GDP growth, inflation, FX depreciation, debt/GDP, trade, FDI)",
-         "Frequency": "Annual", "Coverage": "2010–2024", "Fetched via": "MENASA Risk Monitor's pipeline (shared, not re-fetched)"},
+         "Frequency": "Annual", "Coverage": PANEL_YEAR_RANGE, "Fetched via": "MENASA Risk Monitor's pipeline (shared, not re-fetched)"},
         {"Source": "World Bank Worldwide Governance Indicators", "Used for": "Political stability, government effectiveness, rule of law, regulatory quality, control of corruption",
-         "Frequency": "Annual", "Coverage": "2010–2024", "Fetched via": "MENASA Risk Monitor's pipeline (shared, not re-fetched)"},
+         "Frequency": "Annual", "Coverage": PANEL_YEAR_RANGE, "Fetched via": "MENASA Risk Monitor's pipeline (shared, not re-fetched)"},
         {"Source": "IMF Executive Board records (via this project's own sourced dataset)", "Used for": "sovereign_default / imf_program_entry outcome events",
-         "Frequency": "Event-dated", "Coverage": "2010–2024, 17 real events", "Fetched via": "data/distress_events.py — cited individually, not bulk-downloaded"},
+         "Frequency": "Event-dated", "Coverage": "17 real events, latest 2024 (panel itself now runs through " + PANEL_YEAR_RANGE.split("–")[1] + ")", "Fetched via": "data/distress_events.py — cited individually, not bulk-downloaded"},
         {"Source": "GDELT 2.0 Doc API", "Used for": f"Media tone/volume around {_n_shocks_total} geopolitical shock events",
          "Frequency": "Daily", "Coverage": "Feb 2015+ (GDELT's own real coverage start)", "Fetched via": "GitHub Actions (shock-module/fetch-shocks.yml)"},
         {"Source": "yfinance — FX pairs", "Used for": "Real historical USD exchange rates around each shock event",
          "Frequency": "Daily", "Coverage": "±30 days per event", "Fetched via": "GitHub Actions (shock-module/fetch-fx.yml)"},
         {"Source": "yfinance — CL=F (WTI crude)", "Used for": "Oil-price shock driver, Phase 3 stress test",
-         "Frequency": "Annual average", "Coverage": "2010–2024", "Fetched via": "GitHub Actions (forecast-module/fetch_shock_drivers.py)"},
+         "Frequency": "Annual average", "Coverage": "2010–2026", "Fetched via": "GitHub Actions (forecast-module/fetch_shock_drivers.py)"},
         {"Source": "yfinance — ^IRX (13-week T-bill)", "Used for": "US short-rate proxy, Phase 3 stress test",
-         "Frequency": "Annual average", "Coverage": "2010–2024", "Fetched via": "GitHub Actions (forecast-module/fetch_shock_drivers.py)"},
+         "Frequency": "Annual average", "Coverage": "2010–2026", "Fetched via": "GitHub Actions (forecast-module/fetch_shock_drivers.py)"},
         {"Source": "yfinance — ^VIX (CBOE Volatility Index)", "Used for": "Global risk-aversion shock driver, Phase 3 stress test",
          "Frequency": "Annual average", "Coverage": "2010–2026", "Fetched via": "GitHub Actions (forecast-module/fetch_global_conditions.py)"},
         {"Source": "yfinance — DX-Y.NYB (US Dollar Index)", "Used for": "Dollar-strength shock driver, Phase 3 stress test",
@@ -1697,15 +1710,17 @@ with tab6:
         "module's own README for the full diagnostic trail."
     )
     st.caption(
-        "Why 2024, not 2025 or 2026: the World Bank's Worldwide Governance Indicators — 5 of this model's 11 "
-        "real factors — have not yet been published for 2025 as of this app's last data refresh (WGI is "
-        "released roughly a year behind WDI's economic series, and this project checks for the new release "
-        "rather than assuming a date). Real 2025 economic data (current account, reserves, GDP growth, "
-        "inflation, FX depreciation) is already fetched and sitting in this project's own raw_panel.csv, but "
-        "it isn't used to extend Phase 1's panel past 2024 because doing so would pair real 2025 economics with "
-        "stale 2024 governance scores under a 2025 label — exactly the kind of quiet mismatch this page's own "
-        "editorial standard exists to rule out. Panel coverage will move to 2025 the same way it always has: "
-        "when the real World Bank release lands."
+        f"Panel coverage update: the World Bank published Worldwide Governance Indicators for 2025 "
+        f"(previously the real constraint holding this panel at 2024 — WGI runs roughly a year behind WDI's "
+        f"economic series, and this project checks for the actual release rather than assuming a date). Once "
+        f"that release landed in the shared MENASA Risk Monitor pipeline this project draws on, the panel "
+        f"extended to {PANEL_YEAR_RANGE} for real — no economics-without-governance mismatch, since both "
+        f"halves of the 2025 row now come from the same real release. One honest side effect, disclosed rather "
+        f"than smoothed over: {int(_countries_by_year.index[-1])} reporting is less complete than earlier years "
+        f"({_n_countries_latest_year} of 34 countries, vs. {_n_countries_prior_range} in prior years), which is "
+        f"part of why the primary specification's complete-case sample size is {_n_obs_complete} observations — "
+        f"a real, if unglamorous, consequence of extending to the newest, still-filling-in year rather than "
+        f"something to wait out."
     )
 
     with st.expander("Phase 1 — Sovereign Distress Model: data sources, method, limitations", expanded=False):
@@ -1814,7 +1829,7 @@ with tab6:
         oos_auc_str = f'{oos["auc"]:.2f}' if oos.get("auc") is not None else "N/A"
         st.markdown(f'<div class="card"><b style="color:{TEXT};">Genuine out-of-sample holdout</b><br>'
                      f'<span style="color:{TEXT_MUTED};font-size:0.85rem;">Fit on years ≤2021 only ({oos["train_events"]} real events), '
-                     f'tested on real 2022–2024 outcomes it never saw.</span><br><br>'
+                     f'tested on real {oos["test_year_range"]} outcomes it never saw.</span><br><br>'
                      f'Out-of-sample AUC: <b style="color:{ACCENT};">{oos_auc_str}</b><br>'
                      f'{oos["test_events"]} real events in the {oos["test_n"]}-row test set</div>', unsafe_allow_html=True)
 
@@ -1976,10 +1991,10 @@ with tab6:
             "**Ablation test** (`model/ablation_test.py`) — the real, honest version of an economic-vs-governance "
             "comparison (not \"macro vs. geopolitical\": this project's only geopolitical data is Phase 2's 5-event "
             "study, not a continuous panel, so a literal macro-vs-geopolitical panel ablation isn't possible "
-            "without fabricating a series that doesn't exist). Same primary specification, same 355-observation "
-            "sample: economic factors alone reach AUC 0.711, governance factors alone reach AUC 0.763, and the "
-            "combined 10-factor model reaches AUC 0.843 — a real +0.079 lift over the better single-dimension "
-            "model, genuine evidence combining both real dimensions adds explanatory value.\n\n"
+            "without fabricating a series that doesn't exist). Same primary specification, same complete-case "
+            "sample (n=363): economic factors alone reach AUC 0.713, governance factors alone reach AUC 0.763, "
+            "and the combined 10-factor model reaches AUC 0.835 — a real +0.071 lift over the better "
+            "single-dimension model, genuine evidence combining both real dimensions adds explanatory value.\n\n"
             "**Real per-country equity market signals** (`forecast-module/fetch_country_equity_signals.py`, "
             "yfinance): single-country ETF price series for the 8 tracked countries where one actually exists "
             "and is still trading (TUR, ISR, IND, SAU, EGY, QAT, ARE, PAK) — tested against a broader candidate "

@@ -22,7 +22,7 @@ level; this predicts a specific, falsifiable event.
 Two outcomes, kept separate because they're different severities:
 
 - **`sovereign_default`** — an actual default or restructuring of external
-  sovereign debt. Only 2 such events occur in this 34-country, 2010-2024
+  sovereign debt. Only 2 such events occur in this 34-country, 2010-2025
   panel (Lebanon 2020, Sri Lanka 2022) — genuinely rare by definition, and
   this model says so rather than pretending otherwise.
 - **`imf_program_entry`** — the year a country's IMF Executive Board
@@ -47,7 +47,7 @@ exact indicator codes (e.g. `GC.DOD.TOTL.GD.ZS` for debt-to-GDP,
 
 ## A real methodological finding, not hidden
 
-`debt_to_gdp` is non-missing in only 91 of 507 panel rows (severe sparsity,
+`debt_to_gdp` is non-missing in only 91 of 537 panel rows (severe sparsity,
 already flagged in MENASA's own docs). Requiring complete cases across all
 11 factors collapses the usable sample
 to 77 rows and drops all but 1 of the 17 real distress events with it — the
@@ -56,9 +56,13 @@ country-years under genuine fiscal strain (Lebanon stopped publishing
 fiscal data entirely during its crisis). That's a real, informative pattern,
 not a coding bug.
 
-**Fix:** the primary model excludes `debt_to_gdp` (355 observations, 14 of
+**Fix:** the primary model excludes `debt_to_gdp` (363 observations, 14 of
 17 events retained) and tests it separately as a robustness check on its
 own smaller available subsample. See `model/distress_model.py` for both.
+These exact counts move slightly release over release as new World Bank
+data lands and complete-case coverage shifts — see the live app's own
+Methodology tab for the current numbers rather than treating this file as
+the source of truth for them.
 
 ## Architecture
 
@@ -199,7 +203,7 @@ contain information about which of 34 MENA/South Asia economies enter real
 sovereign distress (default or IMF program entry), and do real geopolitical
 and macro shocks propagate through this panel in economically sensible ways?
 
-**2. Data.** World Bank WDI + Worldwide Governance Indicators (2010–2024,
+**2. Data.** World Bank WDI + Worldwide Governance Indicators (2010–2025,
 34 countries), real sourced distress events (`data/distress_events.py`),
 GDELT 2.0 Doc API + yfinance for the shock module, yfinance (`CL=F`, `^IRX`)
 for macro forecasting. Full source table in the live app's Methodology tab.
