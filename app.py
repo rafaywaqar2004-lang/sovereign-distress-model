@@ -252,6 +252,8 @@ PANEL_YEAR_RANGE = f"{int(phase1_panel['year'].min())}–{int(phase1_panel['year
 _countries_by_year = phase1_panel.groupby("year")["country_code"].nunique()
 _n_countries_latest_year = int(_countries_by_year.iloc[-1])
 _n_countries_prior_range = f"{int(_countries_by_year.iloc[:-1].min())}-{int(_countries_by_year.iloc[:-1].max())}"
+_n_panel_rows = len(phase1_panel)
+_n_debt_nonmissing = int(phase1_panel["debt_to_gdp"].notna().sum())
 
 
 # ============================================================
@@ -286,6 +288,9 @@ phase1_result, phase1_complete = fit_phase1_model(phase1_panel, "imf_program_ent
 phase1_factor_means = phase1_complete[PRIMARY_FACTOR_COLS].mean()
 _n_obs_complete = len(phase1_complete)
 _n_events_retained = int((phase1_complete["sovereign_default"] == 1).sum() + (phase1_complete["imf_program_entry"] == 1).sum())
+_debt_complete = phase1_panel.dropna(subset=PRIMARY_FACTOR_COLS + ["debt_to_gdp", "imf_program_entry", "sovereign_default"])
+_n_debt_complete_rows = len(_debt_complete)
+_n_debt_events_retained = int((_debt_complete["sovereign_default"] == 1).sum() + (_debt_complete["imf_program_entry"] == 1).sum())
 
 
 def _manual_auc(pos, neg):
@@ -1014,11 +1019,11 @@ with tab2:
     with st.expander("Data limitations and specification notes", expanded=False):
         st.markdown(
             '<div class="honest-box"><span class="label">Data limitation and specification note</span>'
-            '<code>debt_to_gdp</code> is non-missing in only 91 of 507 panel rows. Requiring complete cases across '
-            'all 11 factors, including it, collapsed the usable sample to 77 rows and dropped all but 1 of the 17 real '
-            'distress events with it — the country-years missing debt data are disproportionately the same '
-            'country-years under genuine fiscal strain (Lebanon stopped publishing fiscal data entirely during its '
-            'crisis). Fixed by excluding it from the primary model and testing it separately as a robustness check.</div>',
+            f'<code>debt_to_gdp</code> is non-missing in only {_n_debt_nonmissing} of {_n_panel_rows} panel rows. Requiring complete cases across '
+            f'all 11 factors, including it, collapsed the usable sample to {_n_debt_complete_rows} rows and dropped all but {_n_debt_events_retained} of the {_n_events} real '
+            f'distress events with it — the country-years missing debt data are disproportionately the same '
+            f'country-years under genuine fiscal strain (Lebanon stopped publishing fiscal data entirely during its '
+            f'crisis). Fixed by excluding it from the primary model and testing it separately as a robustness check.</div>',
             unsafe_allow_html=True,
         )
         st.markdown(
