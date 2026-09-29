@@ -11,6 +11,7 @@ Every number shown here is either loaded directly from a database/CSV this
 project's own pipeline produced, or computed live from real fitted model
 coefficients -- nothing on this page is invented for display purposes.
 """
+import base64
 import json
 import sqlite3
 import os
@@ -633,6 +634,7 @@ displacement_latest = load_displacement()
 # the fetch hasn't run yet.
 # ============================================================
 from trade_network import load_trade_network, trade_concentration, spillover_exposure, shockable_countries  # noqa: E402
+from country_coordinates import COUNTRY_CAPITAL_COORDS  # noqa: E402
 
 
 @st.cache_data
@@ -649,6 +651,79 @@ trade_net_countries = sorted(set(trade_net_df["reporter_code"])) if trade_net_df
 trade_net_shockable = (
     shockable_countries(trade_net_df, COUNTRIES.keys()) if trade_net_df is not None else []
 )
+
+
+@st.cache_data
+def load_qgis_trade_routes():
+    """Real QGIS output (QgsDistanceArea's direct geodesic solver -- see
+    generate_qgis_geodata.py's own docstring): a true great-circle path
+    between every pair of tracked countries with a real bilateral trade
+    edge. Generated offline, not computed at request time; returns None
+    if the file hasn't been generated yet."""
+    path = os.path.join(HERE, "geodata", "qgis_trade_routes.geojson")
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        gj = json.load(f)
+    routes = {}
+    for feat in gj["features"]:
+        p = feat["properties"]
+        routes[frozenset((p["country_a"], p["country_b"]))] = feat["geometry"]["coordinates"]
+    return routes
+
+
+@st.cache_data
+def load_world_geojson_cached():
+    """Same bundled Natural Earth country boundaries the Coverage map (tab1)
+    uses -- reused here so the trade-route map has geographic context too,
+    rather than floating lines on an empty background."""
+    with open(os.path.join(HERE, "map-data", "countries.geojson")) as f:
+        return json.load(f)
+
+
+def country_outline_traces(world_geojson, max_ring_points=150):
+    """Faint country-outline go.Scatter traces (no fill), decimated the same
+    way build_coverage_map() decimates its own polygon fills -- purely for
+    orientation, not a data layer."""
+    traces_x, traces_y = [], []
+    for feat in world_geojson["features"]:
+        geom = feat["geometry"]
+        rings = [geom["coordinates"][0]] if geom["type"] == "Polygon" else [poly[0] for poly in geom["coordinates"]]
+        for ring in rings:
+            step = max(1, len(ring) // max_ring_points)
+            decimated = ring[::step]
+            if traces_x:
+                traces_x.append(None)
+                traces_y.append(None)
+            traces_x.extend(pt[0] for pt in decimated)
+            traces_y.extend(pt[1] for pt in decimated)
+    return go.Scatter(
+        x=traces_x, y=traces_y, mode="lines",
+        line=dict(width=0.6, color="rgba(255,255,255,0.14)"),
+        hoverinfo="skip", showlegend=False,
+    )
+
+
+# Must match generate_qgis_basemap.py's LON_RANGE/LAT_RANGE exactly, and the
+# same fixed viewport the Coverage map (tab1) and route map already use.
+ROUTE_BASEMAP_LON_RANGE = (-24, 98)
+ROUTE_BASEMAP_LAT_RANGE = (-12, 46)
+ROUTE_BASEMAP_PATH = os.path.join(HERE, "static", "route_map_basemap.png")
+
+
+@st.cache_data
+def route_basemap_data_uri():
+    """Base64-encodes the QGIS-rendered route-map basemap PNG
+    (generate_qgis_basemap.py) as a data URI so Plotly can place it via
+    add_layout_image without depending on Streamlit's static-file serving --
+    works identically in local dev and production. Returns None if the
+    basemap hasn't been generated yet, so the map still renders (just
+    without a background image) rather than raising."""
+    if not os.path.exists(ROUTE_BASEMAP_PATH):
+        return None
+    with open(ROUTE_BASEMAP_PATH, "rb") as f:
+        encoded = base64.b64encode(f.read()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
 
 
 @st.cache_data
@@ -1418,6 +1493,72 @@ with tab3:
                 "shocked country (an import-demand shock). Both are real, computed from actual bilateral trade "
                 "values — never combined into one invented composite number."
             )
+
+            _qgis_routes = load_qgis_trade_routes()
+            if _qgis_routes is None:
+                st.info(
+                    "Real geodesic route geometry not found (geodata/qgis_trade_routes.geojson) -- run "
+                    "`python generate_qgis_geodata.py` to generate it.",
+                    icon="⚠️",
+                )
+            else:
+                st.markdown("##### Real trade routes to the top-exposed countries")
+                st.caption(
+                    "Real great-circle geometry (QGIS's `QgsDistanceArea` direct geodesic solver -- see "
+                    "`generate_qgis_geodata.py`'s own docstring) connecting each capital, drawn as a genuinely "
+                    "curved geodesic path rather than a straight Cartesian line. The route itself is purely "
+                    "cartographic -- which countries are connected, and how thick each line is, comes entirely "
+                    "from the real trade-exposure percentages above, never from geographic distance."
+                )
+                fig_routes = go.Figure()
+                _route_basemap_uri = route_basemap_data_uri()
+                if _route_basemap_uri is not None:
+                    fig_routes.add_layout_image(
+                        dict(
+                            source=_route_basemap_uri,
+                            xref="x", yref="y",
+                            x=ROUTE_BASEMAP_LON_RANGE[0], y=ROUTE_BASEMAP_LAT_RANGE[1],
+                            sizex=ROUTE_BASEMAP_LON_RANGE[1] - ROUTE_BASEMAP_LON_RANGE[0],
+                            sizey=ROUTE_BASEMAP_LAT_RANGE[1] - ROUTE_BASEMAP_LAT_RANGE[0],
+                            xanchor="left", yanchor="top",
+                            sizing="stretch", layer="below",
+                        )
+                    )
+                else:
+                    fig_routes.add_trace(country_outline_traces(load_world_geojson_cached()))
+                shock_lat, shock_lon = COUNTRY_CAPITAL_COORDS.get(sel_shock_country, (None, None))
+                for _, row in top.iterrows():
+                    key = frozenset((sel_shock_country, row["country_code"]))
+                    coords = _qgis_routes.get(key)
+                    if coords is None:
+                        continue
+                    exposure = row["max_exposure_pct"] or 0
+                    fig_routes.add_trace(go.Scatter(
+                        x=[c[0] for c in coords], y=[c[1] for c in coords],
+                        mode="lines", line=dict(width=1 + exposure / 8, color=ACCENT),
+                        opacity=0.7, hoverinfo="text",
+                        text=f"{COUNTRIES.get(sel_shock_country)} ↔ {row['country']}: {exposure:.1f}% max exposure",
+                        showlegend=False,
+                    ))
+                if shock_lat is not None:
+                    fig_routes.add_trace(go.Scatter(
+                        x=[shock_lon], y=[shock_lat], mode="markers+text",
+                        marker=dict(size=12, color=ACCENT2, line=dict(width=1, color=SURFACE)),
+                        text=[COUNTRIES.get(sel_shock_country)], textposition="top center",
+                        textfont=dict(color=TEXT_MUTED, size=10),
+                        hoverinfo="skip", showlegend=False,
+                    ))
+                # Same fixed region bounding box as the Coverage map (tab1) --
+                # this project's own established viewport for these 34
+                # countries, rather than autoscaling to the routes' own extent
+                # (which zoomed out to nearly the whole world for some
+                # shocked-country selections).
+                fig_routes.update_xaxes(range=[-24, 98], visible=False, showgrid=False, zeroline=False, fixedrange=True)
+                fig_routes.update_yaxes(range=[-12, 46], visible=False, showgrid=False, zeroline=False, fixedrange=True, scaleanchor="x", scaleratio=1)
+                fig_routes.update_layout(
+                    plot_bgcolor=BG, paper_bgcolor="rgba(0,0,0,0)", margin=dict(l=0, r=0, t=10, b=0), height=420,
+                )
+                st.plotly_chart(fig_routes, use_container_width=True)
 
 with tab4:
     st.markdown('<div class="section-title">Forecast &amp; Stress Test</div>', unsafe_allow_html=True)
