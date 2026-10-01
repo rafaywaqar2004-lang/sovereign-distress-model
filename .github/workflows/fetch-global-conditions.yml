@@ -2,6 +2,10 @@ name: Fetch global financial conditions — VIX, US 10Y, DXY, EM bond ETF
 
 on:
   workflow_dispatch: {}
+  schedule:
+    # 06:00 UTC, Tuesday-Saturday -- a few hours after US markets close,
+    # so VIX/10Y/DXY/EM bond ETF reflect the prior session's final values.
+    - cron: "0 6 * * 2-6"
 
 permissions:
   contents: write

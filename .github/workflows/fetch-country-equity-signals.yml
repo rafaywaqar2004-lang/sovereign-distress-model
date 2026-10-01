@@ -2,6 +2,10 @@ name: Fetch country equity ETF signals (real, test-and-keep)
 
 on:
   workflow_dispatch: {}
+  schedule:
+    # 06:15 UTC, Tuesday-Saturday -- staggered 15 minutes after the other
+    # two market-data fetches to avoid a same-minute concurrent push to main.
+    - cron: "15 6 * * 2-6"
 
 permissions:
   contents: write

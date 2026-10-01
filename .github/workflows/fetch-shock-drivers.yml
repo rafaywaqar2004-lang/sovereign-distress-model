@@ -2,6 +2,10 @@ name: Fetch shock-driver data — oil price, Fed funds rate (Phase 3)
 
 on:
   workflow_dispatch: {}
+  schedule:
+    # 06:00 UTC, Tuesday-Saturday -- a few hours after US markets close,
+    # so the previous session's oil price and short-term rate proxy are final.
+    - cron: "0 6 * * 2-6"
 
 permissions:
   contents: write
